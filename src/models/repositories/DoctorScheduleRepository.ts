@@ -1,8 +1,9 @@
 import type { CreateDoctorScheduleEntity, DoctorScheduleEntity, UpdateDoctorScheduleEntity } from "../../common/entities/DoctorScheduleEntity";
 import { env } from "../../common/config/env";
+import type { IDoctorScheduleRepository } from "../irepositories/IDoctorScheduleRepository";
 import { createApiClient, getApiErrorMessage } from "./http";
 
-export class DoctorScheduleRepository {
+export class DoctorScheduleRepository implements IDoctorScheduleRepository {
   private readonly client = createApiClient();
 
   async getAll() {

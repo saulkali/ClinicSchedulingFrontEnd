@@ -1,0 +1,365 @@
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  FormControl,
+  Grid,
+  InputLabel,
+  MenuItem,
+  Select,
+  Stack,
+  Typography,
+  TextField,
+} from "@mui/material";
+import { observer } from "mobx-react-lite";
+import type { AppointmentEntity } from "../common/entities/AppointmentEntity";
+import type { AppointmentsViewModel } from "../viewmodels/AppointmentsViewModel";
+import { dayOptions, formatDateTime, getStatusColor } from "../viewmodels/AppointmentsViewModel";
+import { MaterialCalendar } from "./components/MaterialCalendar";
+
+type AppointmentsViewMode = "appointments" | "calendar" | "booking" | "schedule";
+
+type AppointmentsViewProps = {
+  mode: AppointmentsViewMode;
+  viewModel: AppointmentsViewModel;
+};
+
+function AppointmentList({
+  appointments,
+  emptyText,
+  onCancel,
+  onComplete,
+}: {
+  appointments: AppointmentEntity[];
+  emptyText: string;
+  onCancel?: (appointment: AppointmentEntity) => void;
+  onComplete?: (appointment: AppointmentEntity) => void;
+}) {
+  if (!appointments.length) {
+    return <Alert severity="info">{emptyText}</Alert>;
+  }
+
+  return (
+    <Stack spacing={2}>
+      {appointments.map((appointment) => {
+        const normalizedStatus = appointment.status.trim().toLowerCase();
+        const canCancel = onCancel && !["cancelled", "canceled", "completed", "done"].includes(normalizedStatus);
+        const canComplete = onComplete && ["scheduled", "active", "confirmed"].includes(normalizedStatus);
+
+        return (
+          <Card key={appointment.id} variant="outlined" sx={{ borderRadius: 3 }}>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1}>
+                  <Box>
+                    <Typography variant="h6" fontWeight={800}>
+                      {appointment.doctorName} · {appointment.patientName}
+                    </Typography>
+                    <Typography color="text.secondary">
+                      {formatDateTime(appointment.startDateTime)} - {formatDateTime(appointment.endDateTime)}
+                    </Typography>
+                  </Box>
+
+                  <Chip
+                    label={appointment.status}
+                    color={getStatusColor(appointment.status)}
+                    sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+                  />
+                </Stack>
+
+                <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+                  <Chip label={`Duración: ${appointment.durationMinutes} min`} variant="outlined" />
+                  {appointment.reason ? <Chip label={`Motivo: ${appointment.reason}`} variant="outlined" /> : null}
+                  {appointment.cancellationReason ? (
+                    <Chip label={`Cancelación: ${appointment.cancellationReason}`} color="error" variant="outlined" />
+                  ) : null}
+                </Stack>
+
+                {canCancel || canComplete ? (
+                  <Stack direction="row" spacing={1.5}>
+                    {canComplete ? (
+                      <Button variant="contained" onClick={() => onComplete(appointment)}>
+                        Marcar completada
+                      </Button>
+                    ) : null}
+                    {canCancel ? (
+                      <Button color="error" variant="outlined" onClick={() => onCancel(appointment)}>
+                        Cancelar cita
+                      </Button>
+                    ) : null}
+                  </Stack>
+                ) : null}
+              </Stack>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </Stack>
+  );
+}
+
+export const AppointmentsView = observer(function AppointmentsView({ mode, viewModel }: AppointmentsViewProps) {
+  const canCancel = viewModel.currentRole === "PATIENT";
+  const canComplete = viewModel.currentRole === "DOCTOR";
+
+  if (mode === "appointments") {
+    return (
+      <Stack spacing={2}>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Chip label={`Activas: ${viewModel.appointmentSummary.active}`} color="success" />
+          <Chip label={`Canceladas: ${viewModel.appointmentSummary.cancelled}`} color="error" />
+          <Chip label={`Completadas: ${viewModel.appointmentSummary.completed}`} color="warning" />
+        </Stack>
+        <AppointmentList
+          appointments={viewModel.filteredAppointments}
+          emptyText="No hay citas registradas para este rol todavía."
+          onCancel={canCancel ? (appointment) => void viewModel.cancelAppointment(appointment) : undefined}
+          onComplete={canComplete ? (appointment) => void viewModel.completeAppointment(appointment) : undefined}
+        />
+      </Stack>
+    );
+  }
+
+  if (mode === "schedule") {
+    return (
+      <Grid container spacing={2.5}>
+        <Grid size={{ xs: 12, md: 5 }}>
+          <Card sx={{ borderRadius: 4 }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6" fontWeight={800}>Configurar horario laboral</Typography>
+                <Alert severity="info">
+                  Define el día de la semana y el rango horario disponible para atender citas. Este formulario ahora vive en una vista separada.
+                </Alert>
+                <FormControl fullWidth>
+                  <InputLabel>Día laboral</InputLabel>
+                  <Select
+                    label="Día laboral"
+                    value={viewModel.scheduleForm.dayOfWeek}
+                    onChange={(event) => viewModel.setScheduleForm("dayOfWeek", event.target.value)}
+                  >
+                    {dayOptions.map((day) => (
+                      <MenuItem key={day.value} value={String(day.value)}>
+                        {day.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  fullWidth
+                  type="time"
+                  label="Hora de inicio"
+                  InputLabelProps={{ shrink: true }}
+                  value={viewModel.scheduleForm.startTime}
+                  onChange={(event) => viewModel.setScheduleForm("startTime", event.target.value)}
+                />
+                <TextField
+                  fullWidth
+                  type="time"
+                  label="Hora de fin"
+                  InputLabelProps={{ shrink: true }}
+                  value={viewModel.scheduleForm.endTime}
+                  onChange={(event) => viewModel.setScheduleForm("endTime", event.target.value)}
+                />
+                <Button variant="contained" onClick={() => void viewModel.createSchedule()}>
+                  Guardar horario
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, md: 7 }}>
+          <Stack spacing={2}>
+            {viewModel.filteredSchedules.length ? (
+              viewModel.filteredSchedules.map((schedule) => (
+                <Card key={schedule.id} variant="outlined" sx={{ borderRadius: 3 }}>
+                  <CardContent>
+                    <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1}>
+                      <Box>
+                        <Typography variant="h6" fontWeight={800}>{schedule.doctorName}</Typography>
+                        <Typography color="text.secondary">
+                          {dayOptions.find((day) => day.value === schedule.dayOfWeek)?.label} · {schedule.startTime.slice(0, 5)} - {schedule.endTime.slice(0, 5)}
+                        </Typography>
+                      </Box>
+                      <Chip label={schedule.isActive ? "Activo" : "Inactivo"} color={schedule.isActive ? "success" : "default"} />
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Alert severity="info">Todavía no has registrado bloques de horario laboral.</Alert>
+            )}
+          </Stack>
+        </Grid>
+      </Grid>
+    );
+  }
+
+  if (mode === "booking") {
+    const enabledDates = new Set(viewModel.availableDates);
+    const eventsByDate = viewModel.selectedDoctorSchedules.reduce<Record<string, { id: string; title: string; color: "primary" }[]>>((accumulator, schedule) => {
+      for (const dateKey of viewModel.availableDates) {
+        const date = new Date(`${dateKey}T00:00:00`);
+        const day = date.getDay() === 0 ? 7 : date.getDay();
+        if (day === schedule.dayOfWeek) {
+          accumulator[dateKey] = [
+            ...(accumulator[dateKey] ?? []),
+            {
+              id: `${schedule.id}-${dateKey}`,
+              title: `${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`,
+              color: "primary",
+            },
+          ];
+        }
+      }
+      return accumulator;
+    }, {});
+
+    return (
+      <Grid container spacing={2.5}>
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Card sx={{ borderRadius: 4 }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6" fontWeight={800}>Agendar una cita</Typography>
+                <Alert severity="info">
+                  Solo se muestran días laborales del doctor seleccionado. No se permiten fechas anteriores ni horarios fuera de su jornada.
+                </Alert>
+                <FormControl fullWidth>
+                  <InputLabel>Doctor</InputLabel>
+                  <Select
+                    label="Doctor"
+                    value={viewModel.bookingForm.doctorId}
+                    onChange={(event) => viewModel.setBookingDoctor(event.target.value)}
+                  >
+                    {viewModel.visibleDoctors.map((doctor) => (
+                      <MenuItem key={doctor.id} value={doctor.id}>
+                        {doctor.name} · {doctor.specialtyName}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <TextField
+                  fullWidth
+                  label="Especialidad / duración"
+                  value={viewModel.selectedDoctorSpecialty ? `${viewModel.selectedDoctorSpecialty.name} · ${viewModel.selectedDoctorSpecialty.appointmentDurationMinutes} min` : "Selecciona un doctor"}
+                  InputProps={{ readOnly: true }}
+                />
+
+                <Stack spacing={1}>
+                  <Typography fontWeight={700}>Horarios disponibles</Typography>
+                  {viewModel.availableSlots.length ? (
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {viewModel.availableSlots.map((slot) => (
+                        <Chip
+                          key={slot.start}
+                          label={slot.label}
+                          clickable
+                          color={viewModel.bookingForm.selectedSlot === slot.start ? "primary" : "default"}
+                          onClick={() => viewModel.setBookingSlot(slot.start)}
+                        />
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Alert severity="warning">
+                      {viewModel.bookingForm.doctorId
+                        ? "Selecciona un día activo del calendario para ver horarios libres del doctor."
+                        : "Primero selecciona un doctor para cargar su disponibilidad."}
+                    </Alert>
+                  )}
+                </Stack>
+
+                <TextField
+                  fullWidth
+                  multiline
+                  minRows={3}
+                  label="Motivo"
+                  value={viewModel.bookingForm.reason}
+                  onChange={(event) => viewModel.setBookingReason(event.target.value)}
+                />
+
+                <Button variant="contained" onClick={() => void viewModel.createAppointment()}>
+                  Confirmar cita
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 8 }}>
+          <Stack spacing={2}>
+            <MaterialCalendar
+              month={viewModel.calendarMonth}
+              selectedDate={viewModel.bookingForm.selectedDate}
+              enabledDates={enabledDates}
+              eventsByDate={eventsByDate}
+              helperText="Calendario tipo agenda Material UI para elegir únicamente días laborables del doctor."
+              onPreviousMonth={viewModel.goToPreviousMonth}
+              onNextMonth={viewModel.goToNextMonth}
+              onSelectDate={(dateKey) => viewModel.setBookingDate(dateKey)}
+            />
+
+            {viewModel.selectedDoctor ? (
+              <Card sx={{ borderRadius: 4 }}>
+                <CardContent>
+                  <Stack spacing={1.25}>
+                    <Typography variant="h6" fontWeight={800}>{viewModel.selectedDoctor.name}</Typography>
+                    <Typography color="text.secondary">
+                      {viewModel.selectedDoctor.specialtyName} · Próximo bloque sugerido: {viewModel.availableSlots[0] ? formatDateTime(viewModel.availableSlots[0].start) : "Sin disponibilidad inmediata"}
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {viewModel.selectedDoctorSchedules.map((schedule) => (
+                        <Chip
+                          key={schedule.id}
+                          label={`${dayOptions.find((day) => day.value === schedule.dayOfWeek)?.label}: ${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`}
+                          variant="outlined"
+                        />
+                      ))}
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ) : null}
+          </Stack>
+        </Grid>
+      </Grid>
+    );
+  }
+
+  const eventsByDate = Object.entries(viewModel.appointmentDatesMap).reduce<Record<string, { id: string; title: string; color: "success" | "warning" | "error" | "default" }[]>>(
+    (accumulator, [dateKey, appointments]) => {
+      accumulator[dateKey] = appointments.map((appointment) => ({
+        id: appointment.id,
+        title: `${new Date(appointment.startDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })} ${appointment.patientName}`,
+        color: getStatusColor(appointment.status),
+      }));
+      return accumulator;
+    },
+    {}
+  );
+
+  return (
+    <Stack spacing={2}>
+      <Alert severity="info">
+        Vista de calendario separada para consultar citas en formato tipo Google Calendar usando componentes Material UI.
+      </Alert>
+      <MaterialCalendar
+        month={viewModel.calendarMonth}
+        eventsByDate={eventsByDate}
+        helperText="Cada día muestra las citas del rol actual y permite una lectura rápida del estado operacional."
+        onPreviousMonth={viewModel.goToPreviousMonth}
+        onNextMonth={viewModel.goToNextMonth}
+      />
+      <AppointmentList
+        appointments={viewModel.calendarAppointments}
+        emptyText="No hay citas para mostrar en el calendario."
+        onCancel={canCancel ? (appointment) => void viewModel.cancelAppointment(appointment) : undefined}
+        onComplete={canComplete ? (appointment) => void viewModel.completeAppointment(appointment) : undefined}
+      />
+    </Stack>
+  );
+});

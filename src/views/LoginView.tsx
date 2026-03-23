@@ -36,9 +36,12 @@ import {
 import { observer } from "mobx-react-lite";
 import { sessionStore } from "../common/session/SessionStore";
 import { AuthRepository } from "../models/repositories/AuthRepository";
+import { DoctorRepository } from "../models/repositories/DoctorRepository";
+import { PatientRepository } from "../models/repositories/PatientRepository";
 import { RoleRepository } from "../models/repositories/RoleRepository";
 import { UserRepository } from "../models/repositories/UserRepository";
-import { LoginViewModel } from "../viewmodels/LoginViewModel";
+import { RolesViewModel } from "../viewmodels/RolesViewModel";
+import { UserViewModel } from "../viewmodels/UserViewModel";
 
 type LoginDialogProps = {
   open: boolean;
@@ -80,28 +83,33 @@ const getRoleVisual = (roleName: string) => {
   );
 };
 
-export const LoginView = observer(function LoginDialog({
-  open,
-  onClose,
-}: LoginDialogProps) {
+export const LoginView = observer(function LoginDialog({ open, onClose }: LoginDialogProps) {
   const [tab, setTab] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const viewModel = useMemo(
-    () => new LoginViewModel(new AuthRepository(), new RoleRepository(), new UserRepository()),
-    []
+  const rolesViewModel = useMemo(() => new RolesViewModel(new RoleRepository()), []);
+  const userViewModel = useMemo(
+    () =>
+      new UserViewModel(
+        new AuthRepository(),
+        new UserRepository(),
+        new PatientRepository(),
+        new DoctorRepository(),
+        rolesViewModel
+      ),
+    [rolesViewModel]
   );
 
   useEffect(() => {
     if (open && tab === 1) {
-      void viewModel.ensureRolesLoaded();
+      void userViewModel.ensureRolesLoaded();
     }
-  }, [open, tab, viewModel]);
+  }, [open, tab, userViewModel]);
 
   const handleClose = () => {
-    viewModel.clearMessages();
-    viewModel.clearRegisterMessages();
+    userViewModel.clearMessages();
+    userViewModel.clearRegisterMessages();
     setShowPassword(false);
     setShowRegisterPassword(false);
     setShowConfirmPassword(false);
@@ -109,7 +117,7 @@ export const LoginView = observer(function LoginDialog({
   };
 
   const handleLogin = async () => {
-    const success = await viewModel.login();
+    const success = await userViewModel.login();
 
     if (success) {
       handleClose();
@@ -117,7 +125,7 @@ export const LoginView = observer(function LoginDialog({
   };
 
   const handleRegister = async () => {
-    const success = await viewModel.register();
+    const success = await userViewModel.register();
 
     if (success) {
       setTab(0);
@@ -128,14 +136,14 @@ export const LoginView = observer(function LoginDialog({
 
   const handleLogout = () => {
     sessionStore.clearSession();
-    viewModel.resetForm();
+    userViewModel.resetForm();
   };
 
   const handleTabChange = (_: SyntheticEvent, value: number) => {
     setTab(value);
 
     if (value === 1) {
-      void viewModel.ensureRolesLoaded();
+      void userViewModel.ensureRolesLoaded();
     }
   };
 
@@ -197,15 +205,15 @@ export const LoginView = observer(function LoginDialog({
                   : "Accede para revisar tus citas, historial y próximos recordatorios."}
               </Alert>
 
-              {viewModel.errorMessage ? (
+              {userViewModel.errorMessage ? (
                 <Alert severity="error" sx={{ borderRadius: 3 }}>
-                  {viewModel.errorMessage}
+                  {userViewModel.errorMessage}
                 </Alert>
               ) : null}
 
-              {viewModel.successMessage ? (
+              {userViewModel.successMessage ? (
                 <Alert severity="success" sx={{ borderRadius: 3 }}>
-                  {viewModel.successMessage}
+                  {userViewModel.successMessage}
                 </Alert>
               ) : null}
 
@@ -213,8 +221,8 @@ export const LoginView = observer(function LoginDialog({
                 fullWidth
                 label="Correo electrónico"
                 placeholder="paciente@correo.com"
-                value={viewModel.email}
-                onChange={(event) => viewModel.setEmail(event.target.value)}
+                value={userViewModel.email}
+                onChange={(event) => userViewModel.setEmail(event.target.value)}
                 disabled={sessionStore.isLoggedIn}
                 InputProps={{
                   startAdornment: (
@@ -230,8 +238,8 @@ export const LoginView = observer(function LoginDialog({
                 type={showPassword ? "text" : "password"}
                 label="Contraseña"
                 placeholder="********"
-                value={viewModel.password}
-                onChange={(event) => viewModel.setPassword(event.target.value)}
+                value={userViewModel.password}
+                onChange={(event) => userViewModel.setPassword(event.target.value)}
                 disabled={sessionStore.isLoggedIn}
                 InputProps={{
                   startAdornment: (
@@ -260,165 +268,60 @@ export const LoginView = observer(function LoginDialog({
               </Stack>
 
               {sessionStore.isLoggedIn ? (
-                <Button
-                  variant="outlined"
-                  size="large"
-                  startIcon={<LogoutIcon />}
-                  onClick={handleLogout}
-                  sx={{
-                    borderRadius: 3,
-                    textTransform: "none",
-                    fontWeight: 700,
-                    py: 1.4,
-                  }}
-                >
-                  Cerrar sesión
+                <Button variant="outlined" startIcon={<LogoutIcon />} onClick={handleLogout}>
+                  Cerrar sesión actual
                 </Button>
               ) : (
                 <Button
                   variant="contained"
                   size="large"
                   startIcon={<LoginIcon />}
-                  onClick={handleLogin}
-                  disabled={!viewModel.canSubmit}
-                  sx={{
-                    borderRadius: 3,
-                    textTransform: "none",
-                    fontWeight: 700,
-                    py: 1.4,
-                  }}
+                  disabled={!userViewModel.canSubmit}
+                  onClick={() => void handleLogin()}
                 >
-                  {viewModel.isLoading ? "Ingresando..." : "Ingresar"}
+                  Iniciar sesión
                 </Button>
               )}
             </Stack>
           ) : (
             <Stack spacing={2.5}>
-              <Alert severity="success" sx={{ borderRadius: 3 }}>
-Selecciona el rol con el que deseas registrarte para abrir su dashboard correspondiente.
+              <Alert severity="info" sx={{ borderRadius: 3 }}>
+                Selecciona el rol con el que deseas usar la plataforma y crea tu usuario.
               </Alert>
 
-              {viewModel.registerErrorMessage ? (
+              {rolesViewModel.errorMessage ? (
                 <Alert severity="error" sx={{ borderRadius: 3 }}>
-                  {viewModel.registerErrorMessage}
+                  {rolesViewModel.errorMessage}
                 </Alert>
               ) : null}
 
-              {viewModel.registerSuccessMessage ? (
+              {userViewModel.registerErrorMessage ? (
+                <Alert severity="error" sx={{ borderRadius: 3 }}>
+                  {userViewModel.registerErrorMessage}
+                </Alert>
+              ) : null}
+
+              {userViewModel.registerSuccessMessage ? (
                 <Alert severity="success" sx={{ borderRadius: 3 }}>
-                  {viewModel.registerSuccessMessage}
+                  {userViewModel.registerSuccessMessage}
                 </Alert>
               ) : null}
-
-              <Stack spacing={1.5}>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  Elige tu rol
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Los roles se consultan en tiempo real desde la base de datos mediante el endpoint de roles.
-                </Typography>
-              </Stack>
-
-              {viewModel.isRolesLoading ? (
-                <Alert severity="info" sx={{ borderRadius: 3 }}>
-                  Cargando roles disponibles...
-                </Alert>
-              ) : null}
-
-              <Stack spacing={1.5}>
-                {viewModel.roles.map((role) => {
-                  const visual = getRoleVisual(role.name);
-                  const isSelected = viewModel.selectedRoleId === role.id;
-
-                  return (
-                    <Card
-                      key={role.id}
-                      elevation={isSelected ? 8 : 0}
-                      sx={{
-                        borderRadius: 3,
-                        border: "1px solid",
-                        borderColor: isSelected ? "primary.main" : "divider",
-                        backgroundColor: isSelected ? "rgba(25, 118, 210, 0.06)" : "background.paper",
-                        transition: "all 0.2s ease-in-out",
-                      }}
-                    >
-                      <CardActionArea onClick={() => viewModel.setSelectedRoleId(role.id)}>
-                        <Stack
-                          direction="row"
-                          spacing={2}
-                          alignItems="center"
-                          sx={{ px: 2, py: 2 }}
-                        >
-                          <Box
-                            sx={{
-                              width: 56,
-                              height: 56,
-                              borderRadius: 2.5,
-                              display: "grid",
-                              placeItems: "center",
-                              backgroundColor: isSelected ? "primary.main" : "rgba(25, 118, 210, 0.10)",
-                              color: isSelected ? "primary.contrastText" : "primary.main",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {visual.icon}
-                          </Box>
-
-                          <Box sx={{ flex: 1 }}>
-                            <Stack
-                              direction={{ xs: "column", sm: "row" }}
-                              spacing={1}
-                              justifyContent="space-between"
-                              alignItems={{ xs: "flex-start", sm: "center" }}
-                            >
-                              <Typography variant="subtitle1" fontWeight={800}>
-                                {visual.title}
-                              </Typography>
-                              <Chip
-                                label={isSelected ? "Seleccionado" : "Disponible"}
-                                color={isSelected ? "primary" : "default"}
-                                size="small"
-                              />
-                            </Stack>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                              {visual.description}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </CardActionArea>
-                    </Card>
-                  );
-                })}
-              </Stack>
 
               <TextField
                 fullWidth
                 label="Correo electrónico"
-                placeholder="correo@ejemplo.com"
-                value={viewModel.registerEmail}
-                onChange={(event) => viewModel.setRegisterEmail(event.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailIcon />
-                    </InputAdornment>
-                  ),
-                }}
+                placeholder="usuario@correo.com"
+                value={userViewModel.registerEmail}
+                onChange={(event) => userViewModel.setRegisterEmail(event.target.value)}
               />
+
               <TextField
                 fullWidth
                 type={showRegisterPassword ? "text" : "password"}
                 label="Contraseña"
-                placeholder="********"
-                helperText="Debe contener al menos 6 caracteres."
-                value={viewModel.registerPassword}
-                onChange={(event) => viewModel.setRegisterPassword(event.target.value)}
+                value={userViewModel.registerPassword}
+                onChange={(event) => userViewModel.setRegisterPassword(event.target.value)}
                 InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockIcon />
-                    </InputAdornment>
-                  ),
                   endAdornment: (
                     <InputAdornment position="end">
                       <IconButton onClick={() => setShowRegisterPassword((prev) => !prev)}>
@@ -428,19 +331,14 @@ Selecciona el rol con el que deseas registrarte para abrir su dashboard correspo
                   ),
                 }}
               />
+
               <TextField
                 fullWidth
                 type={showConfirmPassword ? "text" : "password"}
                 label="Confirmar contraseña"
-                placeholder="********"
-                value={viewModel.confirmPassword}
-                onChange={(event) => viewModel.setConfirmPassword(event.target.value)}
+                value={userViewModel.confirmPassword}
+                onChange={(event) => userViewModel.setConfirmPassword(event.target.value)}
                 InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockIcon />
-                    </InputAdornment>
-                  ),
                   endAdornment: (
                     <InputAdornment position="end">
                       <IconButton onClick={() => setShowConfirmPassword((prev) => !prev)}>
@@ -451,29 +349,71 @@ Selecciona el rol con el que deseas registrarte para abrir su dashboard correspo
                 }}
               />
 
+              <Divider>
+                <Chip label="Selecciona tu rol" />
+              </Divider>
+
+              <Stack spacing={1.5}>
+                {rolesViewModel.isLoading ? (
+                  <Alert severity="info">Cargando roles disponibles...</Alert>
+                ) : rolesViewModel.activeRoles.length ? (
+                  rolesViewModel.activeRoles.map((role) => {
+                    const visual = getRoleVisual(role.name);
+                    const selected = userViewModel.selectedRoleId === role.id;
+
+                    return (
+                      <Card
+                        key={role.id}
+                        variant={selected ? "elevation" : "outlined"}
+                        sx={{
+                          borderRadius: 4,
+                          borderColor: selected ? "primary.main" : undefined,
+                          boxShadow: selected ? 8 : undefined,
+                        }}
+                      >
+                        <CardActionArea onClick={() => userViewModel.setSelectedRoleId(role.id)}>
+                          <Stack direction="row" spacing={2} alignItems="center" sx={{ p: 2 }}>
+                            <Box
+                              sx={{
+                                width: 52,
+                                height: 52,
+                                borderRadius: "50%",
+                                bgcolor: selected ? "primary.main" : "action.hover",
+                                color: selected ? "white" : "text.primary",
+                                display: "grid",
+                                placeItems: "center",
+                              }}
+                            >
+                              {visual.icon}
+                            </Box>
+                            <Box sx={{ flexGrow: 1 }}>
+                              <Typography fontWeight={800}>{visual.title}</Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {visual.description}
+                              </Typography>
+                            </Box>
+                            {selected ? <Chip color="primary" label="Seleccionado" /> : null}
+                          </Stack>
+                        </CardActionArea>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Alert severity="warning">No hay roles activos configurados para el registro.</Alert>
+                )}
+              </Stack>
+
               <Button
                 variant="contained"
                 size="large"
                 startIcon={<PersonAddIcon />}
-                onClick={handleRegister}
-                disabled={!viewModel.canRegister || viewModel.isRolesLoading}
-                sx={{
-                  borderRadius: 3,
-                  textTransform: "none",
-                  fontWeight: 700,
-                  py: 1.4,
-                }}
+                disabled={!userViewModel.canRegister}
+                onClick={() => void handleRegister()}
               >
-                {viewModel.isRegistering ? "Creando cuenta..." : "Crear cuenta"}
+                Crear cuenta
               </Button>
             </Stack>
           )}
-
-          <Divider sx={{ my: 3 }} />
-
-          <Typography variant="body2" color="text.secondary" textAlign="center">
-            Al continuar aceptas nuestros términos de servicio y aviso de privacidad.
-          </Typography>
         </Box>
       </DialogContent>
     </Dialog>

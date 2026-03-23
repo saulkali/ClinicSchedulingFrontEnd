@@ -1,8 +1,9 @@
 import type { AppointmentEntity, CreateAppointmentEntity, UpdateAppointmentEntity } from "../../common/entities/AppointmentEntity";
 import { env } from "../../common/config/env";
+import type { IAppointmentRepository } from "../irepositories/IAppointmentRepository";
 import { createApiClient, getApiErrorMessage } from "./http";
 
-export class AppointmentRepository {
+export class AppointmentRepository implements IAppointmentRepository {
   private readonly client = createApiClient();
 
   async getAll() {
