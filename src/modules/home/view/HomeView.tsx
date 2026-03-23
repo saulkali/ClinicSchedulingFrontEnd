@@ -33,6 +33,8 @@ import {
   Home as HomeIcon,
   LocalHospital as LocalHospitalIcon,
   Login as LoginIcon,
+  Logout as LogoutIcon,
+  Lock as LockIcon,
   MedicalServices as MedicalServicesIcon,
   Menu as MenuIcon,
   Person as PersonIcon,
@@ -49,7 +51,9 @@ import {
   Phone as PhoneIcon,
   EventAvailable as EventAvailableIcon,
 } from "@mui/icons-material";
+import { observer } from "mobx-react-lite";
 import { LoginDialog } from "../../../app/common/components/LoginDialog";
+import { sessionStore } from "../../../core/session/SessionStore";
 
 const drawerWidth = 280;
 
@@ -80,9 +84,10 @@ type MenuItem = {
   text: string;
   icon: React.ReactNode;
   badge?: string;
+  requiresAuth?: boolean;
 };
 
-export function HomeView() {
+export const HomeView = observer(function HomeView() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
 
@@ -90,16 +95,20 @@ export function HomeView() {
     setMobileOpen((prev) => !prev);
   };
 
+  const openLogin = () => {
+    setLoginOpen(true);
+  };
+
   const menuItems = useMemo<MenuItem[]>(
     () => [
       { text: "Inicio", icon: <HomeIcon /> },
-      { text: "Agendar cita", icon: <CalendarMonthIcon />, badge: "Nuevo" },
+      { text: "Agendar cita", icon: <CalendarMonthIcon />, badge: "Nuevo", requiresAuth: true },
       { text: "Especialidades", icon: <MedicalServicesIcon /> },
       { text: "Médicos", icon: <GroupsIcon /> },
-      { text: "Mis citas", icon: <AccessTimeIcon /> },
+      { text: "Mis citas", icon: <AccessTimeIcon />, requiresAuth: true },
       { text: "Urgencias", icon: <EmergencyIcon /> },
       { text: "Bienestar", icon: <FavoriteIcon /> },
-      { text: "Mi perfil", icon: <PersonIcon /> },
+      { text: "Mi perfil", icon: <PersonIcon />, requiresAuth: true },
     ],
     []
   );
@@ -193,67 +202,104 @@ export function HomeView() {
                 <FavoriteIcon />
               </Avatar>
               <Box>
-                <Typography fontWeight={700}>Portal del paciente</Typography>
+                <Typography fontWeight={700}>
+                  {sessionStore.isLoggedIn ? sessionStore.email : "Portal del paciente"}
+                </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.85 }}>
-                  Gestiona tus consultas
+                  {sessionStore.isLoggedIn
+                    ? `Rol actual: ${sessionStore.role || "Usuario autenticado"}`
+                    : "Gestiona tus consultas"}
                 </Typography>
               </Box>
             </Stack>
 
-            <Button
-              variant="contained"
-              fullWidth
-              startIcon={<LoginIcon />}
-              onClick={() => setLoginOpen(true)}
-              sx={{
-                mt: 1.5,
-                borderRadius: 3,
-                textTransform: "none",
-                fontWeight: 700,
-                animation: `${pulse} 2.4s infinite`,
-              }}
-            >
-              Iniciar sesión
-            </Button>
+            {sessionStore.isLoggedIn ? (
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<LogoutIcon />}
+                onClick={sessionStore.clearSession}
+                sx={{
+                  mt: 1.5,
+                  borderRadius: 3,
+                  borderColor: "rgba(255,255,255,0.35)",
+                  color: "white",
+                  textTransform: "none",
+                  fontWeight: 700,
+                }}
+              >
+                Cerrar sesión
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                fullWidth
+                startIcon={<LoginIcon />}
+                onClick={openLogin}
+                sx={{
+                  mt: 1.5,
+                  borderRadius: 3,
+                  textTransform: "none",
+                  fontWeight: 700,
+                  animation: `${pulse} 2.4s infinite`,
+                }}
+              >
+                Iniciar sesión
+              </Button>
+            )}
           </CardContent>
         </Card>
       </Box>
 
       <List sx={{ px: 1.5, py: 2 }}>
-        {menuItems.map((item, index) => (
-          <ListItemButton
-            key={item.text}
-            sx={{
-              borderRadius: 3,
-              mb: 0.9,
-              color: "white",
-              animation: `${fadeUp} ${0.25 + index * 0.08}s ease`,
-              "&:hover": {
-                backgroundColor: "rgba(255,255,255,0.1)",
-                transform: "translateX(4px)",
-              },
-              transition: "all .25s ease",
-            }}
-          >
-            <ListItemIcon sx={{ color: "white", minWidth: 42 }}>
-              {item.icon}
-            </ListItemIcon>
+        {menuItems.map((item, index) => {
+          const isBlocked = Boolean(item.requiresAuth && !sessionStore.isLoggedIn);
 
-            <ListItemText primary={item.text} />
+          return (
+            <ListItemButton
+              key={item.text}
+              onClick={isBlocked ? openLogin : undefined}
+              sx={{
+                borderRadius: 3,
+                mb: 0.9,
+                color: "white",
+                opacity: isBlocked ? 0.6 : 1,
+                animation: `${fadeUp} ${0.25 + index * 0.08}s ease`,
+                "&:hover": {
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                  transform: "translateX(4px)",
+                },
+                transition: "all .25s ease",
+              }}
+            >
+              <ListItemIcon sx={{ color: "white", minWidth: 42 }}>
+                {item.icon}
+              </ListItemIcon>
 
-            {item.badge && (
-              <Chip
-                label={item.badge}
-                size="small"
-                sx={{
-                  bgcolor: "#42a5f5",
-                  color: "white",
-                  fontWeight: 700,
-                }}
+              <ListItemText
+                primary={item.text}
+                secondary={isBlocked ? "Requiere iniciar sesión" : undefined}
+                secondaryTypographyProps={{ sx: { color: "rgba(255,255,255,0.7)" } }}
               />
-            )}
-          </ListItemButton>
-        ))}
+
+              {isBlocked ? (
+                <LockIcon sx={{ fontSize: 18, color: "rgba(255,255,255,0.7)" }} />
+              ) : null}
+
+              {item.badge ? (
+                <Chip
+                  label={item.badge}
+                  size="small"
+                  sx={{
+                    bgcolor: "#42a5f5",
+                    color: "white",
+                    fontWeight: 700,
+                  }}
+                />
+              ) : null}
+            </ListItemButton>
+          );
+        })}
       </List>
 
       <Box sx={{ px: 2, pb: 2 }}>
@@ -314,7 +360,9 @@ export function HomeView() {
                 Sistema de citas médicas
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Encuentra especialistas y agenda en minutos
+                {sessionStore.isLoggedIn
+                  ? `Sesión iniciada como ${sessionStore.email}`
+                  : "Encuentra especialistas y agenda en minutos"}
               </Typography>
             </Box>
           </Stack>
@@ -338,18 +386,33 @@ export function HomeView() {
               </Badge>
             </IconButton>
 
-            <Button
-              variant="outlined"
-              startIcon={<LoginIcon />}
-              onClick={() => setLoginOpen(true)}
-              sx={{
-                borderRadius: 3,
-                textTransform: "none",
-                fontWeight: 700,
-              }}
-            >
-              Iniciar sesión
-            </Button>
+            {sessionStore.isLoggedIn ? (
+              <Button
+                variant="outlined"
+                startIcon={<LogoutIcon />}
+                onClick={sessionStore.clearSession}
+                sx={{
+                  borderRadius: 3,
+                  textTransform: "none",
+                  fontWeight: 700,
+                }}
+              >
+                Cerrar sesión
+              </Button>
+            ) : (
+              <Button
+                variant="outlined"
+                startIcon={<LoginIcon />}
+                onClick={openLogin}
+                sx={{
+                  borderRadius: 3,
+                  textTransform: "none",
+                  fontWeight: 700,
+                }}
+              >
+                Iniciar sesión
+              </Button>
+            )}
           </Stack>
         </Toolbar>
       </AppBar>
@@ -444,6 +507,20 @@ export function HomeView() {
             organiza tus consultas desde un solo lugar, con una experiencia clara y moderna.
           </Typography>
 
+          {!sessionStore.isLoggedIn ? (
+            <AlertBanner onLogin={openLogin} />
+          ) : (
+            <Chip
+              label={`Usuario autenticado: ${sessionStore.email}${sessionStore.role ? ` · ${sessionStore.role}` : ""}`}
+              sx={{
+                mb: 3,
+                bgcolor: "rgba(255,255,255,0.18)",
+                color: "white",
+                fontWeight: 700,
+              }}
+            />
+          )}
+
           <Stack direction="row" spacing={1.2} mb={3} flexWrap="wrap" useFlexGap>
             {quickStats.map((stat) => (
               <Chip
@@ -501,6 +578,7 @@ export function HomeView() {
               variant="contained"
               size="large"
               endIcon={<ArrowForwardIcon />}
+              onClick={!sessionStore.isLoggedIn ? openLogin : undefined}
               sx={{
                 minWidth: 190,
                 borderRadius: 3,
@@ -739,13 +817,14 @@ export function HomeView() {
 
                     <Button
                       variant="contained"
+                      onClick={!sessionStore.isLoggedIn ? openLogin : undefined}
                       sx={{
                         borderRadius: 3,
                         textTransform: "none",
                         fontWeight: 700,
                       }}
                     >
-                      Reservar
+                      {sessionStore.isLoggedIn ? "Reservar" : "Inicia sesión para reservar"}
                     </Button>
                   </Stack>
                 </Box>
@@ -758,7 +837,7 @@ export function HomeView() {
       <Zoom in>
         <Fab
           color="primary"
-          onClick={() => setLoginOpen(true)}
+          onClick={openLogin}
           sx={{
             position: "fixed",
             right: 24,
@@ -771,6 +850,48 @@ export function HomeView() {
       </Zoom>
 
       <LoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} />
+    </Box>
+  );
+});
+
+function AlertBanner({ onLogin }: { onLogin: () => void }) {
+  return (
+    <Box
+      sx={{
+        mb: 3,
+        p: 2,
+        borderRadius: 3,
+        bgcolor: "rgba(255,255,255,0.14)",
+        backdropFilter: "blur(8px)",
+      }}
+    >
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        spacing={2}
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", md: "center" }}
+      >
+        <Box>
+          <Typography fontWeight={800}>Acceso requerido para funciones privadas</Typography>
+          <Typography variant="body2" sx={{ opacity: 0.95 }}>
+            Inicia sesión para habilitar agendamiento, historial, perfil y seguimiento de citas.
+          </Typography>
+        </Box>
+
+        <Button
+          variant="contained"
+          onClick={onLogin}
+          startIcon={<LoginIcon />}
+          sx={{
+            borderRadius: 3,
+            textTransform: "none",
+            fontWeight: 700,
+            bgcolor: "#0f172a",
+          }}
+        >
+          Ir a iniciar sesión
+        </Button>
+      </Stack>
     </Box>
   );
 }

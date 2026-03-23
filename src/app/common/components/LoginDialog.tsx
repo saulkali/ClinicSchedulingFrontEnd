@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -21,25 +21,56 @@ import {
   Email as EmailIcon,
   Lock as LockIcon,
   Login as LoginIcon,
+  Logout as LogoutIcon,
   PersonAdd as PersonAddIcon,
   Visibility,
   VisibilityOff,
   HealthAndSafety as HealthAndSafetyIcon,
 } from "@mui/icons-material";
+import { observer } from "mobx-react-lite";
+import { LoginViewModel } from "../viewmodels/LoginViewModel";
+import { AuthRepository } from "../model/repositories/AuthRepository";
+import { sessionStore } from "../../../core/session/SessionStore";
 
 type LoginDialogProps = {
   open: boolean;
   onClose: () => void;
 };
 
-export function LoginDialog({ open, onClose }: LoginDialogProps) {
+export const LoginDialog = observer(function LoginDialog({
+  open,
+  onClose,
+}: LoginDialogProps) {
   const [tab, setTab] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
+  const viewModel = useMemo(
+    () => new LoginViewModel(new AuthRepository()),
+    []
+  );
+
+  const handleClose = () => {
+    viewModel.clearMessages();
+    setShowPassword(false);
+    onClose();
+  };
+
+  const handleLogin = async () => {
+    const success = await viewModel.login();
+
+    if (success) {
+      handleClose();
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStore.clearSession();
+    viewModel.resetForm();
+  };
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       fullWidth
       maxWidth="sm"
       PaperProps={{
@@ -73,7 +104,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
             </Box>
           </Stack>
 
-          <IconButton onClick={onClose} sx={{ color: "white" }}>
+          <IconButton onClick={handleClose} sx={{ color: "white" }}>
             <CloseIcon />
           </IconButton>
         </Box>
@@ -93,13 +124,30 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
           {tab === 0 ? (
             <Stack spacing={2.5}>
               <Alert severity="info" sx={{ borderRadius: 3 }}>
-                Accede para revisar tus citas, historial y próximos recordatorios.
+                {sessionStore.isLoggedIn
+                  ? `Sesión activa como ${sessionStore.email}${sessionStore.role ? ` · ${sessionStore.role}` : ""}`
+                  : "Accede para revisar tus citas, historial y próximos recordatorios."}
               </Alert>
+
+              {viewModel.errorMessage ? (
+                <Alert severity="error" sx={{ borderRadius: 3 }}>
+                  {viewModel.errorMessage}
+                </Alert>
+              ) : null}
+
+              {viewModel.successMessage ? (
+                <Alert severity="success" sx={{ borderRadius: 3 }}>
+                  {viewModel.successMessage}
+                </Alert>
+              ) : null}
 
               <TextField
                 fullWidth
                 label="Correo electrónico"
                 placeholder="paciente@correo.com"
+                value={viewModel.email}
+                onChange={(event) => viewModel.setEmail(event.target.value)}
+                disabled={sessionStore.isLoggedIn}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -114,6 +162,9 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
                 type={showPassword ? "text" : "password"}
                 label="Contraseña"
                 placeholder="********"
+                value={viewModel.password}
+                onChange={(event) => viewModel.setPassword(event.target.value)}
+                disabled={sessionStore.isLoggedIn}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -144,19 +195,38 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
                 </Typography>
               </Stack>
 
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={<LoginIcon />}
-                sx={{
-                  borderRadius: 3,
-                  textTransform: "none",
-                  fontWeight: 700,
-                  py: 1.4,
-                }}
-              >
-                Ingresar
-              </Button>
+              {sessionStore.isLoggedIn ? (
+                <Button
+                  variant="outlined"
+                  size="large"
+                  startIcon={<LogoutIcon />}
+                  onClick={handleLogout}
+                  sx={{
+                    borderRadius: 3,
+                    textTransform: "none",
+                    fontWeight: 700,
+                    py: 1.4,
+                  }}
+                >
+                  Cerrar sesión
+                </Button>
+              ) : (
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<LoginIcon />}
+                  onClick={handleLogin}
+                  disabled={!viewModel.canSubmit}
+                  sx={{
+                    borderRadius: 3,
+                    textTransform: "none",
+                    fontWeight: 700,
+                    py: 1.4,
+                  }}
+                >
+                  {viewModel.isLoading ? "Ingresando..." : "Ingresar"}
+                </Button>
+              )}
             </Stack>
           ) : (
             <Stack spacing={2.5}>
@@ -208,4 +278,4 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
       </DialogContent>
     </Dialog>
   );
-}
+});
