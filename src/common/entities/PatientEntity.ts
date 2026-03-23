@@ -1,21 +1,20 @@
-export type CreateDoctorEntity = {
+export type CreatePatientEntity = {
   userId: string;
-  specialtyId: string;
   name: string;
+  birthDate?: string | null;
   phone?: string;
 };
 
-export type UpdateDoctorEntity = CreateDoctorEntity & {
+export type UpdatePatientEntity = CreatePatientEntity & {
   isActive: boolean;
 };
 
-export type DoctorEntity = {
+export type PatientEntity = {
   id: string;
   userId: string;
   userEmail: string;
-  specialtyId: string;
-  specialtyName: string;
   name: string;
+  birthDate?: string | null;
   phone?: string | null;
   isActive: boolean;
   createdAt: string;

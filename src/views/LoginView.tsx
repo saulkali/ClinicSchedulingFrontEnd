@@ -46,20 +46,25 @@ type LoginDialogProps = {
 };
 
 const roleVisuals: Record<string, { icon: ReactNode; title: string; description: string }> = {
+  admin: {
+    icon: <HealthAndSafetyIcon fontSize="large" />,
+    title: "Administrador",
+    description: "Accede al dashboard para gestionar pacientes, doctores y especialidades.",
+  },
   doctor: {
     icon: <MedicalServicesIcon fontSize="large" />,
     title: "Doctor",
     description: "Accede para gestionar agenda, disponibilidad y consultas.",
   },
-  paciente: {
+  patient: {
     icon: <BadgeIcon fontSize="large" />,
     title: "Paciente",
     description: "Regístrate para agendar citas y consultar tu seguimiento médico.",
   },
-  cliente: {
+  paciente: {
     icon: <BadgeIcon fontSize="large" />,
-    title: "Cliente",
-    description: "Crea tu cuenta para reservar citas y recibir atención personalizada.",
+    title: "Paciente",
+    description: "Regístrate para agendar citas y consultar tu seguimiento médico.",
   },
 };
 
@@ -290,7 +295,7 @@ export const LoginView = observer(function LoginDialog({
           ) : (
             <Stack spacing={2.5}>
               <Alert severity="success" sx={{ borderRadius: 3 }}>
-                Selecciona si deseas registrarte como paciente/cliente o como doctor.
+Selecciona el rol con el que deseas registrarte para abrir su dashboard correspondiente.
               </Alert>
 
               {viewModel.registerErrorMessage ? (

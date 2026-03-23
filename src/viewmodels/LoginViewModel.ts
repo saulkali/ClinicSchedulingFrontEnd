@@ -208,7 +208,6 @@ export class LoginViewModel {
       const roleName =
         this.roles.find((role) => role.id === createdUser.roleId)?.name ?? createdUser.roleName;
 
-      this.registerSuccessMessage = `Cuenta creada correctamente como ${roleName}.`;
       this.email = createdUser.email;
       this.password = "";
       this.resetRegisterForm();

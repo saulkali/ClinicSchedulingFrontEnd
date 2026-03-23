@@ -1,9 +1,11 @@
 import { makeAutoObservable } from "mobx";
+import { getRoleFromToken, getUserIdFromToken } from "./token";
 
 type SessionData = {
   token: string;
   role: string;
   email: string;
+  userId?: string;
   refreshToken?: string;
   expiresAt?: string;
 };
@@ -14,6 +16,7 @@ class SessionStore {
   token = "";
   role = "";
   email = "";
+  userId = "";
   refreshToken = "";
   expiresAt = "";
 
@@ -26,6 +29,10 @@ class SessionStore {
     return Boolean(this.token && this.email);
   }
 
+  get normalizedRole() {
+    return this.role.trim().toUpperCase();
+  }
+
   hydrate() {
     const storageValue = window.localStorage.getItem(SESSION_STORAGE_KEY);
 
@@ -36,8 +43,9 @@ class SessionStore {
     try {
       const session = JSON.parse(storageValue) as SessionData;
       this.token = session.token;
-      this.role = session.role;
+      this.role = session.role || getRoleFromToken(session.token);
       this.email = session.email;
+      this.userId = session.userId || getUserIdFromToken(session.token);
       this.refreshToken = session.refreshToken ?? "";
       this.expiresAt = session.expiresAt ?? "";
     } catch {
@@ -47,8 +55,9 @@ class SessionStore {
 
   setSession(session: SessionData) {
     this.token = session.token;
-    this.role = session.role;
+    this.role = session.role || getRoleFromToken(session.token);
     this.email = session.email;
+    this.userId = session.userId || getUserIdFromToken(session.token);
     this.refreshToken = session.refreshToken ?? "";
     this.expiresAt = session.expiresAt ?? "";
 
@@ -58,6 +67,7 @@ class SessionStore {
         token: this.token,
         role: this.role,
         email: this.email,
+        userId: this.userId,
         refreshToken: this.refreshToken,
         expiresAt: this.expiresAt,
       })
@@ -68,6 +78,7 @@ class SessionStore {
     this.token = "";
     this.role = "";
     this.email = "";
+    this.userId = "";
     this.refreshToken = "";
     this.expiresAt = "";
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
