@@ -1,30 +1,26 @@
-import axios, { AxiosError } from "axios";
 import { env } from "../../common/config/env";
 import type { CreateUserEntity, UserEntity } from "../../common/entities/UserEntity";
 import type { IUserRepository } from "../irepositories/IUserRepository";
+import { createApiClient, getApiErrorMessage } from "./http";
 
 export class UserRepository implements IUserRepository {
-  private readonly client = axios.create({
-    baseURL: env.apiBaseUrl,
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  private readonly client = createApiClient();
+
+  async getAll(): Promise<UserEntity[]> {
+    try {
+      const { data } = await this.client.get<UserEntity[]>(env.userPath);
+      return data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, "No fue posible consultar los usuarios."));
+    }
+  }
 
   async create(request: CreateUserEntity): Promise<UserEntity> {
     try {
       const { data } = await this.client.post<UserEntity>(env.userPath, request);
       return data;
     } catch (error) {
-      if (error instanceof AxiosError) {
-        const apiMessage =
-          (error.response?.data as { message?: string } | undefined)?.message ??
-          "No fue posible completar el registro del usuario.";
-
-        throw new Error(apiMessage);
-      }
-
-      throw new Error("Ocurrió un error inesperado al registrar el usuario.");
+      throw new Error(getApiErrorMessage(error, "No fue posible completar el registro del usuario."));
     }
   }
 }
