@@ -29,15 +29,15 @@ import {
 } from "@mui/icons-material";
 import { observer } from "mobx-react-lite";
 import { LoginViewModel } from "../viewmodels/LoginViewModel";
-import { AuthRepository } from "../model/repositories/AuthRepository";
-import { sessionStore } from "../../../core/session/SessionStore";
+import { AuthRepository } from "../models/repositories/AuthRepository";
+import { sessionStore } from "../common/session/SessionStore";
 
 type LoginDialogProps = {
   open: boolean;
   onClose: () => void;
 };
 
-export const LoginDialog = observer(function LoginDialog({
+export const LoginView = observer(function LoginDialog({
   open,
   onClose,
 }: LoginDialogProps) {

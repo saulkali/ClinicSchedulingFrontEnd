@@ -1,6 +1,6 @@
 import { makeAutoObservable } from "mobx";
-import { AuthRepository } from "../model/repositories/AuthRepository";
-import { sessionStore } from "../../../core/session/SessionStore";
+import { AuthRepository } from "../models/repositories/AuthRepository";
+import { sessionStore } from "../common/session/SessionStore";
 
 export class LoginViewModel {
   email = "";

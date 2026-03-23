@@ -1,4 +1,4 @@
-import { HomeView } from "./modules/home/view/HomeView"
+import { HomeView } from "./views/HomeView"
 
 function App() {
 

@@ -52,8 +52,8 @@ import {
   EventAvailable as EventAvailableIcon,
 } from "@mui/icons-material";
 import { observer } from "mobx-react-lite";
-import { LoginDialog } from "../../../app/common/components/LoginDialog";
-import { sessionStore } from "../../../core/session/SessionStore";
+import { LoginView } from "./LoginView";
+import { sessionStore } from "../common/session/SessionStore";
 
 const drawerWidth = 280;
 
@@ -849,7 +849,7 @@ export const HomeView = observer(function HomeView() {
         </Fab>
       </Zoom>
 
-      <LoginDialog open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <LoginView open={loginOpen} onClose={() => setLoginOpen(false)} />
     </Box>
   );
 });

@@ -1,5 +1,6 @@
 import axios, { AxiosError } from "axios";
-import { env } from "../../../../core/config/env";
+import { env } from "../../common/config/env";
+
 import type {
   IAuthRepository,
   LoginRequest,
