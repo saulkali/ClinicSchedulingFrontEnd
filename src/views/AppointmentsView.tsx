@@ -15,9 +15,11 @@ import {
   TextField,
 } from "@mui/material";
 import { observer } from "mobx-react-lite";
+import { useState } from "react";
 import type { AppointmentEntity } from "../common/entities/AppointmentEntity";
 import type { AppointmentsViewModel } from "../viewmodels/AppointmentsViewModel";
 import { dayOptions, formatDateTime, getStatusColor } from "../viewmodels/AppointmentsViewModel";
+import { CancellationReasonDialog } from "./components/CancellationReasonDialog";
 import { MaterialCalendar } from "./components/MaterialCalendar";
 
 type AppointmentsViewMode = "appointments" | "calendar" | "booking" | "schedule";
@@ -104,6 +106,33 @@ function AppointmentList({
 export const AppointmentsView = observer(function AppointmentsView({ mode, viewModel }: AppointmentsViewProps) {
   const canCancel = viewModel.currentRole === "PATIENT";
   const canComplete = viewModel.currentRole === "DOCTOR";
+  const [appointmentToCancel, setAppointmentToCancel] = useState<AppointmentEntity | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+
+  const handleOpenCancellationDialog = (appointment: AppointmentEntity) => {
+    setAppointmentToCancel(appointment);
+    setCancellationReason("");
+  };
+
+  const handleCloseCancellationDialog = () => {
+    setAppointmentToCancel(null);
+    setCancellationReason("");
+  };
+
+  const handleConfirmCancellation = async () => {
+    if (!appointmentToCancel) {
+      return;
+    }
+
+    const cancelled = await viewModel.cancelAppointment(
+      appointmentToCancel,
+      cancellationReason.trim() || undefined
+    );
+
+    if (cancelled) {
+      handleCloseCancellationDialog();
+    }
+  };
 
   if (mode === "appointments") {
     return (
@@ -116,8 +145,15 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
         <AppointmentList
           appointments={viewModel.filteredAppointments}
           emptyText="No hay citas registradas para este rol todavía."
-          onCancel={canCancel ? (appointment) => void viewModel.cancelAppointment(appointment) : undefined}
+          onCancel={canCancel ? handleOpenCancellationDialog : undefined}
           onComplete={canComplete ? (appointment) => void viewModel.completeAppointment(appointment) : undefined}
+        />
+        <CancellationReasonDialog
+          open={Boolean(appointmentToCancel)}
+          reason={cancellationReason}
+          onReasonChange={setCancellationReason}
+          onConfirm={() => void handleConfirmCancellation()}
+          onClose={handleCloseCancellationDialog}
         />
       </Stack>
     );
@@ -199,24 +235,35 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
   }
 
   if (mode === "booking") {
-    const enabledDates = new Set(viewModel.availableDates);
-    const eventsByDate = viewModel.selectedDoctorSchedules.reduce<Record<string, { id: string; title: string; color: "primary" }[]>>((accumulator, schedule) => {
-      for (const dateKey of viewModel.availableDates) {
+    const enabledDates = new Set(viewModel.bookingEnabledDates);
+    const eventsByDate = viewModel.bookingEnabledDates.reduce<Record<string, { id: string; title: string; color: "primary" }[]>>(
+      (accumulator, dateKey) => {
         const date = new Date(`${dateKey}T00:00:00`);
-        const day = date.getDay() === 0 ? 7 : date.getDay();
-        if (day === schedule.dayOfWeek) {
-          accumulator[dateKey] = [
-            ...(accumulator[dateKey] ?? []),
-            {
-              id: `${schedule.id}-${dateKey}`,
-              title: `${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`,
-              color: "primary",
-            },
-          ];
-        }
-      }
-      return accumulator;
-    }, {});
+        const jsDay = date.getDay();
+        const dayOfWeek = jsDay === 0 ? 7 : jsDay;
+        const schedulesForDay = viewModel.selectedDoctorSchedules.filter((schedule) => schedule.dayOfWeek === dayOfWeek);
+
+        accumulator[dateKey] = schedulesForDay.map((schedule) => ({
+          id: `${schedule.id}-${dateKey}`,
+          title: `${schedule.startTime.slice(0, 5)} - ${schedule.endTime.slice(0, 5)}`,
+          color: "primary",
+        }));
+
+        return accumulator;
+      },
+      {}
+    );
+
+    if (viewModel.bookingForm.selectedDate && viewModel.availableSlots.length) {
+      eventsByDate[viewModel.bookingForm.selectedDate] = [
+        ...(eventsByDate[viewModel.bookingForm.selectedDate] ?? []),
+        ...viewModel.availableSlots.map((slot, index) => ({
+          id: `${slot.startDateTime}-available-${index}`,
+          title: `Libre: ${new Date(slot.startDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`,
+          color: "primary" as const,
+        })),
+      ];
+    }
 
     return (
       <Grid container spacing={2.5}>
@@ -226,8 +273,13 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
               <Stack spacing={2}>
                 <Typography variant="h6" fontWeight={800}>Agendar una cita</Typography>
                 <Alert severity="info">
-                  Solo se muestran días laborales del doctor seleccionado. No se permiten fechas anteriores ni horarios fuera de su jornada.
+                  Selecciona el doctor, luego un día laboral en el calendario y finalmente uno de los horarios disponibles.
                 </Alert>
+                {viewModel.shouldShowCancellationAlert ? (
+                  <Alert severity="warning">
+                    Este paciente tiene {viewModel.currentPatientCancelledAppointments} cancelaciones acumuladas. Verifica antes de confirmar.
+                  </Alert>
+                ) : null}
                 <FormControl fullWidth>
                   <InputLabel>Doctor</InputLabel>
                   <Select
@@ -256,19 +308,19 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                       {viewModel.availableSlots.map((slot) => (
                         <Chip
-                          key={slot.start}
-                          label={slot.label}
+                          key={slot.startDateTime}
+                          label={`${new Date(slot.startDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })} - ${new Date(slot.endDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`}
                           clickable
-                          color={viewModel.bookingForm.selectedSlot === slot.start ? "primary" : "default"}
-                          onClick={() => viewModel.setBookingSlot(slot.start)}
+                          color={viewModel.bookingForm.selectedSlot === slot.startDateTime ? "primary" : "default"}
+                          onClick={() => viewModel.setBookingSlot(slot.startDateTime)}
                         />
                       ))}
                     </Stack>
                   ) : (
                     <Alert severity="warning">
-                      {viewModel.bookingForm.doctorId
-                        ? "Selecciona un día activo del calendario para ver horarios libres del doctor."
-                        : "Primero selecciona un doctor para cargar su disponibilidad."}
+                      {viewModel.bookingForm.doctorId && viewModel.bookingForm.selectedDate
+                        ? "No hay horarios disponibles para la fecha seleccionada."
+                        : "Selecciona un doctor y un día laboral para cargar horarios disponibles."}
                     </Alert>
                   )}
                 </Stack>
@@ -289,42 +341,17 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
             </CardContent>
           </Card>
         </Grid>
-
         <Grid size={{ xs: 12, lg: 8 }}>
-          <Stack spacing={2}>
-            <MaterialCalendar
-              month={viewModel.calendarMonth}
-              selectedDate={viewModel.bookingForm.selectedDate}
-              enabledDates={enabledDates}
-              eventsByDate={eventsByDate}
-              helperText="Calendario tipo agenda Material UI para elegir únicamente días laborables del doctor."
-              onPreviousMonth={viewModel.goToPreviousMonth}
-              onNextMonth={viewModel.goToNextMonth}
-              onSelectDate={(dateKey) => viewModel.setBookingDate(dateKey)}
-            />
-
-            {viewModel.selectedDoctor ? (
-              <Card sx={{ borderRadius: 4 }}>
-                <CardContent>
-                  <Stack spacing={1.25}>
-                    <Typography variant="h6" fontWeight={800}>{viewModel.selectedDoctor.name}</Typography>
-                    <Typography color="text.secondary">
-                      {viewModel.selectedDoctor.specialtyName} · Próximo bloque sugerido: {viewModel.availableSlots[0] ? formatDateTime(viewModel.availableSlots[0].start) : "Sin disponibilidad inmediata"}
-                    </Typography>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      {viewModel.selectedDoctorSchedules.map((schedule) => (
-                        <Chip
-                          key={schedule.id}
-                          label={`${dayOptions.find((day) => day.value === schedule.dayOfWeek)?.label}: ${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`}
-                          variant="outlined"
-                        />
-                      ))}
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-            ) : null}
-          </Stack>
+          <MaterialCalendar
+            month={viewModel.calendarMonth}
+            selectedDate={viewModel.bookingForm.selectedDate}
+            enabledDates={enabledDates}
+            eventsByDate={eventsByDate}
+            helperText="Calendario para seleccionar el día y consultar disponibilidad del doctor."
+            onPreviousMonth={viewModel.goToPreviousMonth}
+            onNextMonth={viewModel.goToNextMonth}
+            onSelectDate={(dateKey) => viewModel.setBookingDate(dateKey)}
+          />
         </Grid>
       </Grid>
     );
@@ -357,8 +384,15 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
       <AppointmentList
         appointments={viewModel.calendarAppointments}
         emptyText="No hay citas para mostrar en el calendario."
-        onCancel={canCancel ? (appointment) => void viewModel.cancelAppointment(appointment) : undefined}
+        onCancel={canCancel ? handleOpenCancellationDialog : undefined}
         onComplete={canComplete ? (appointment) => void viewModel.completeAppointment(appointment) : undefined}
+      />
+      <CancellationReasonDialog
+        open={Boolean(appointmentToCancel)}
+        reason={cancellationReason}
+        onReasonChange={setCancellationReason}
+        onConfirm={() => void handleConfirmCancellation()}
+        onClose={handleCloseCancellationDialog}
       />
     </Stack>
   );

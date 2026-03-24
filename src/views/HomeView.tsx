@@ -197,10 +197,6 @@ export const HomeView = observer(function HomeView() {
     userViewModel,
   ]);
 
-  useEffect(() => {
-    appointmentsViewModel.initializeBookingDate();
-  }, [appointmentsViewModel, appointmentsViewModel.bookingForm.doctorId, appointmentsViewModel.availableDates.length]);
-
   const renderOverview = () => (
     <Grid container spacing={2.5}>
       {[

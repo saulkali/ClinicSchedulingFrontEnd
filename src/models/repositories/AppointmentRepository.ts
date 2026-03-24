@@ -1,7 +1,7 @@
 import type {
+  AppointmentAvailableDoctorDto,
   AppointmentEntity,
   CreateAppointmentEntity,
-  DoctorBusySlotEntity,
   UpdateAppointmentEntity,
 } from "../../common/entities/AppointmentEntity";
 import { env } from "../../common/config/env";
@@ -29,12 +29,17 @@ export class AppointmentRepository implements IAppointmentRepository {
     }
   }
 
-  async getByDoctorId(doctorId: string) {
+  async getDoctorAvailability(doctorId: string, date: string) {
     try {
-      const { data } = await this.client.get<DoctorBusySlotEntity[]>(`${env.appointmentPath}/doctor/${doctorId}`);
+      const { data } = await this.client.get<AppointmentAvailableDoctorDto>(
+        `${env.appointmentPath}/doctor/${doctorId}/availability`,
+        {
+          params: { date },
+        }
+      );
       return data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error, "No fue posible consultar las citas activas del doctor."));
+      throw new Error(getApiErrorMessage(error, "No fue posible consultar la disponibilidad del doctor."));
     }
   }
 
