@@ -29,6 +29,7 @@ import {
   EventAvailable as EventAvailableIcon,
   Group as GroupIcon,
   Groups as GroupsIcon,
+  Home as HomeIcon,
   LocalHospital as LocalHospitalIcon,
   Login as LoginIcon,
   Logout as LogoutIcon,
@@ -61,6 +62,7 @@ import { RolesView } from "./RolesView";
 import { UserView } from "./UserView";
 
 type SectionKey =
+  | "welcome"
   | "overview"
   | "roles"
   | "patients"
@@ -94,7 +96,11 @@ const roleCopy: Record<string, { title: string; subtitle: string }> = {
   },
 };
 
-const getNavItemsByRole = (role: string): NavItem[] => {
+const getNavItemsByRole = (role: string, isLoggedIn: boolean): NavItem[] => {
+  if (!isLoggedIn) {
+    return [{ key: "welcome", label: "Principal", icon: <HomeIcon /> }];
+  }
+
   if (role === "ADMIN") {
     return [
       { key: "overview", label: "Resumen", icon: <AdminPanelSettingsIcon /> },
@@ -156,7 +162,7 @@ export const HomeView = observer(function HomeView() {
   const isLoggedIn = sessionStore.isLoggedIn;
   const currentUserId = sessionStore.userId;
   const currentRole = sessionStore.normalizedRole || "PATIENT";
-  const navItems = useMemo(() => getNavItemsByRole(currentRole), [currentRole]);
+  const navItems = useMemo(() => getNavItemsByRole(currentRole, isLoggedIn), [currentRole, isLoggedIn]);
   const currentCopy = roleCopy[currentRole] ?? roleCopy.PATIENT;
   const needsProfileCompletion = Boolean(
     isLoggedIn &&
@@ -245,14 +251,12 @@ export const HomeView = observer(function HomeView() {
         <Card sx={{ borderRadius: 4, height: "100%" }}>
           <CardContent>
             <Typography variant="h6" fontWeight={800} gutterBottom>
-              Arquitectura separada por vistas y view models
+              Centro de control de citas
             </Typography>
             <Stack spacing={1.5}>
-              <Alert severity="info">
-                El dashboard ahora divide la lógica en <strong>RolesViewModel</strong>, <strong>UserViewModel</strong> y <strong>AppointmentsViewModel</strong>.
-              </Alert>
+              <Alert severity="info">Supervisa en tiempo real el comportamiento de tu agenda clínica.</Alert>
               <Typography color="text.secondary">
-                Cada pestaña principal quedó desacoplada para que roles, usuarios/perfiles y citas/calendarios no mezclen responsabilidades.
+                Revisa pacientes, especialistas y estados de citas para tomar decisiones rápidas y mantener una atención ordenada.
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <Chip label={`Roles activos: ${rolesViewModel.activeRoles.length}`} color="primary" />
@@ -303,12 +307,12 @@ export const HomeView = observer(function HomeView() {
         <Card sx={{ borderRadius: 5, background: "linear-gradient(135deg, #1565c0 0%, #42a5f5 100%)", color: "white" }}>
           <CardContent sx={{ p: 4 }}>
             <Stack spacing={2.5}>
-              <Typography variant="h3" fontWeight={900}>Sistema de citas por rol</Typography>
+              <Typography variant="h3" fontWeight={900}>Bienvenido a la mini agenda de citas</Typography>
               <Typography>
-                El sistema detecta si el usuario es ADMIN, PATIENT o DOCTOR y muestra su dashboard correspondiente para administrar la clínica, buscar doctores o planificar el horario laboral.
+                Inicia sesión para continuar o regístrate y comienza a gestionar tu salud desde un solo lugar.
               </Typography>
               <Button variant="contained" color="secondary" startIcon={<LoginIcon />} onClick={() => setLoginOpen(true)} sx={{ alignSelf: "flex-start" }}>
-                Iniciar sesión para continuar
+                Iniciar sesión o registrarte
               </Button>
             </Stack>
           </CardContent>
@@ -317,9 +321,9 @@ export const HomeView = observer(function HomeView() {
       <Grid size={{ xs: 12, md: 4 }}>
         <Stack spacing={2}>
           {[
-            { title: "ADMIN", text: "Visualiza pacientes, doctores, especialidades, roles y calendarios desde un tablero operativo." },
-            { title: "PATIENT", text: "Busca doctores, usa un calendario visual y agenda citas según disponibilidad real del doctor." },
-            { title: "DOCTOR", text: "Organiza tu día, crea horarios laborales y controla tus citas activas desde vistas separadas." },
+            { title: "Agenda en minutos", text: "Agenda tus citas con especialistas en minutos y sin llamadas telefónicas." },
+            { title: "Historial organizado", text: "Organiza tu historial de citas para consultar rápidamente tus atenciones previas." },
+            { title: "Recordatorios claros", text: "Recibe seguimiento de tus próximas citas para no perder ninguna consulta importante." },
           ].map((item) => (
             <Card key={item.title} sx={{ borderRadius: 4 }}>
               <CardContent>
