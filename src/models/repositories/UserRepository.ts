@@ -6,6 +6,15 @@ import { createApiClient, getApiErrorMessage } from "./http";
 export class UserRepository implements IUserRepository {
   private readonly client = createApiClient();
 
+  async getAll(): Promise<UserEntity[]> {
+    try {
+      const { data } = await this.client.get<UserEntity[]>(env.userPath);
+      return data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, "No fue posible consultar los usuarios."));
+    }
+  }
+
   async create(request: CreateUserEntity): Promise<UserEntity> {
     try {
       const { data } = await this.client.post<UserEntity>(env.userPath, request);

@@ -1,8 +1,9 @@
 import type { CreateSpecialtyEntity, SpecialtyEntity, UpdateSpecialtyEntity } from "../../common/entities/SpecialtyEntity";
 import { env } from "../../common/config/env";
+import type { ISpecialtyRepository } from "../irepositories/ISpecialtyRepository";
 import { createApiClient, getApiErrorMessage } from "./http";
 
-export class SpecialtyRepository {
+export class SpecialtyRepository implements ISpecialtyRepository {
   private readonly client = createApiClient();
 
   async getAll() {

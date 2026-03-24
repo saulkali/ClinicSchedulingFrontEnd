@@ -1,8 +1,9 @@
 import type { CreateDoctorEntity, DoctorEntity, UpdateDoctorEntity } from "../../common/entities/DoctorEntity";
 import { env } from "../../common/config/env";
+import type { IDoctorRepository } from "../irepositories/IDoctorRepository";
 import { createApiClient, getApiErrorMessage } from "./http";
 
-export class DoctorRepository {
+export class DoctorRepository implements IDoctorRepository {
   private readonly client = createApiClient();
 
   async getAll() {
