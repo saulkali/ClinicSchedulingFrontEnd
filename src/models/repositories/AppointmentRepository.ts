@@ -1,7 +1,6 @@
 import type {
   AppointmentEntity,
   CreateAppointmentEntity,
-  DoctorBusySlotEntity,
   UpdateAppointmentEntity,
 } from "../../common/entities/AppointmentEntity";
 import { env } from "../../common/config/env";
@@ -26,15 +25,6 @@ export class AppointmentRepository implements IAppointmentRepository {
       return data;
     } catch (error) {
       throw new Error(getApiErrorMessage(error, "No fue posible consultar las citas del paciente."));
-    }
-  }
-
-  async getByDoctorId(doctorId: string) {
-    try {
-      const { data } = await this.client.get<DoctorBusySlotEntity[]>(`${env.appointmentPath}/doctor/${doctorId}`);
-      return data;
-    } catch (error) {
-      throw new Error(getApiErrorMessage(error, "No fue posible consultar las citas activas del doctor."));
     }
   }
 

@@ -1,5 +1,5 @@
 import { makeAutoObservable, runInAction } from "mobx";
-import type { AppointmentEntity, DoctorBusySlotEntity, UpdateAppointmentEntity } from "../common/entities/AppointmentEntity";
+import type { AppointmentEntity, UpdateAppointmentEntity } from "../common/entities/AppointmentEntity";
 import type { DoctorEntity } from "../common/entities/DoctorEntity";
 import type { DoctorScheduleEntity } from "../common/entities/DoctorScheduleEntity";
 import type { PatientEntity } from "../common/entities/PatientEntity";
@@ -10,17 +10,6 @@ import type { IDoctorRepository } from "../models/irepositories/IDoctorRepositor
 import type { IDoctorScheduleRepository } from "../models/irepositories/IDoctorScheduleRepository";
 import type { IPatientRepository } from "../models/irepositories/IPatientRepository";
 import type { ISpecialtyRepository } from "../models/irepositories/ISpecialtyRepository";
-import { formatLocalDateTime } from "../common/helpers/DateTimeHelper";
-
-const WORKING_DAY_OFFSET: Record<number, number> = {
-  1: 1,
-  2: 2,
-  3: 3,
-  4: 4,
-  5: 5,
-  6: 6,
-  7: 0,
-};
 
 const toDateOnly = (value: Date) => {
   const year = value.getFullYear();
@@ -29,17 +18,7 @@ const toDateOnly = (value: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-const combineDateAndTime = (date: Date, time: string) => {
-  const [hours, minutes] = time.slice(0, 5).split(":").map(Number);
-  const next = new Date(date);
-  next.setHours(hours, minutes, 0, 0);
-  return next;
-};
-
 const addMinutes = (date: Date, minutes: number) => new Date(date.getTime() + minutes * 60000);
-
-const rangesOverlap = (leftStart: Date, leftEnd: Date, rightStart: Date, rightEnd: Date) =>
-  leftStart < rightEnd && leftEnd > rightStart;
 
 const toDateTimeLocalValue = (value: Date) => {
   const offset = value.getTimezoneOffset();
@@ -85,13 +64,11 @@ export class AppointmentsViewModel {
   specialties: SpecialtyEntity[] = [];
   appointments: AppointmentEntity[] = [];
   schedules: DoctorScheduleEntity[] = [];
-  selectedDoctorAppointments: DoctorBusySlotEntity[] = [];
 
   specialtyForm = { name: "", appointmentDurationMinutes: "30" };
   scheduleForm = { dayOfWeek: "1", startTime: "08:00", endTime: "17:00" };
   bookingForm = {
     doctorId: "",
-    selectedDate: "",
     selectedSlot: "",
     reason: "",
   };
@@ -139,16 +116,7 @@ export class AppointmentsViewModel {
 
   setBookingDoctor(doctorId: string) {
     this.bookingForm.doctorId = doctorId;
-    this.bookingForm.selectedDate = "";
     this.bookingForm.selectedSlot = "";
-    this.selectedDoctorAppointments = [];
-    void this.loadSelectedDoctorAppointments();
-  }
-
-  setBookingDate(date: string) {
-    this.bookingForm.selectedDate = date;
-    this.bookingForm.selectedSlot = "";
-    void this.loadSelectedDoctorAppointments();
   }
 
   setBookingSlot(slot: string) {
@@ -237,136 +205,20 @@ export class AppointmentsViewModel {
       .sort((left, right) => left.dayOfWeek - right.dayOfWeek || left.startTime.localeCompare(right.startTime));
   }
 
-  get doctorWorkingDayNumbers() {
-    return new Set(this.selectedDoctorSchedules.map((schedule) => schedule.dayOfWeek));
-  }
-
-  get availableDates() {
-    if (!this.bookingForm.doctorId || !this.selectedDoctorSchedules.length) {
-      return [];
+  get currentPatientCancelledAppointments() {
+    if (!this.currentPatient) {
+      return 0;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dates = new Set<string>();
-
-    for (const schedule of this.selectedDoctorSchedules) {
-      for (let week = 0; week < 8; week += 1) {
-        const base = new Date(today);
-        const currentDay = base.getDay();
-        const targetDay = WORKING_DAY_OFFSET[schedule.dayOfWeek];
-        const delta = (targetDay - currentDay + 7) % 7;
-        base.setDate(base.getDate() + delta + week * 7);
-        if (base >= today) {
-          dates.add(toDateOnly(base));
-        }
-      }
-    }
-
-    return [...dates].sort();
-  }
-
-  get availableSlots() {
-    if (!this.bookingForm.doctorId || !this.bookingForm.selectedDate || !this.selectedDoctorSpecialty) {
-      return [];
-    }
-
-    const date = new Date(`${this.bookingForm.selectedDate}T00:00:00`);
-    if (Number.isNaN(date.getTime())) {
-      return [];
-    }
-
-    const jsDay = date.getDay();
-    const dayOfWeek = jsDay === 0 ? 7 : jsDay;
-    const duration = this.selectedDoctorSpecialty.appointmentDurationMinutes;
-    const now = new Date();
-
-    const doctorAppointments = this.selectedDoctorAppointments.filter(
+    return this.appointments.filter(
       (appointment) =>
-        appointment.doctorId === this.bookingForm.doctorId &&
-        !["cancelled", "canceled"].includes(normalizeStatus(appointment.status)) &&
-        toDateOnly(new Date(appointment.startDateTime)) === this.bookingForm.selectedDate
-    );
-
-    return this.selectedDoctorSchedules
-      .filter((schedule) => schedule.dayOfWeek === dayOfWeek)
-      .flatMap((schedule) => {
-        const slots: { start: string; end: string; label: string }[] = [];
-        let pointer = combineDateAndTime(date, schedule.startTime);
-        const endBoundary = combineDateAndTime(date, schedule.endTime);
-
-        while (addMinutes(pointer, duration) <= endBoundary) {
-          const slotEnd = addMinutes(pointer, duration);
-          const overlaps = doctorAppointments.some((appointment) =>
-            rangesOverlap(pointer, slotEnd, new Date(appointment.startDateTime), new Date(appointment.endDateTime))
-          );
-
-          const isPast = pointer <= now;
-
-          if (!overlaps && !isPast) {
-              slots.push({
-              start: pointer.toISOString(),
-              end: slotEnd.toISOString(),
-              label: `${pointer.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })} - ${slotEnd.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`,
-            });
-          }
-
-          pointer = slotEnd;
-        }
-
-        return slots;
-      });
+        appointment.patientId === this.currentPatient?.id &&
+        ["cancelled", "canceled"].includes(normalizeStatus(appointment.status))
+    ).length;
   }
-  get availableSlots() {
-    if (!this.bookingForm.doctorId || !this.bookingForm.selectedDate || !this.selectedDoctorSpecialty) {
-      return [];
-    }
 
-    const date = new Date(`${this.bookingForm.selectedDate}T00:00:00`);
-    if (Number.isNaN(date.getTime())) {
-      return [];
-    }
-
-    const jsDay = date.getDay();
-    const dayOfWeek = jsDay === 0 ? 7 : jsDay;
-    const duration = this.selectedDoctorSpecialty.appointmentDurationMinutes;
-    const now = new Date();
-
-    const doctorAppointments = this.selectedDoctorAppointments.filter(
-      (appointment) =>
-        appointment.doctorId === this.bookingForm.doctorId &&
-        !["cancelled", "canceled"].includes(normalizeStatus(appointment.status)) &&
-        toDateOnly(new Date(appointment.startDateTime)) === this.bookingForm.selectedDate
-    );
-
-    return this.selectedDoctorSchedules
-      .filter((schedule) => schedule.dayOfWeek === dayOfWeek)
-      .flatMap((schedule) => {
-        const slots: { start: string; end: string; label: string }[] = [];
-        let pointer = combineDateAndTime(date, schedule.startTime);
-        const endBoundary = combineDateAndTime(date, schedule.endTime);
-
-        while (addMinutes(pointer, duration) <= endBoundary) {
-          const slotEnd = addMinutes(pointer, duration);
-          const overlaps = doctorAppointments.some((appointment) =>
-            rangesOverlap(pointer, slotEnd, new Date(appointment.startDateTime), new Date(appointment.endDateTime))
-          );
-
-          const isPast = pointer <= now;
-
-          if (!overlaps && !isPast) {
-              slots.push({
-              start: formatLocalDateTime(pointer),
-              end: formatLocalDateTime(slotEnd) ,
-              label: `${pointer.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })} - ${slotEnd.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`,
-            });
-          }
-
-          pointer = slotEnd;
-        }
-
-        return slots;
-      });
+  get shouldShowCancellationAlert() {
+    return this.currentPatientCancelledAppointments > 3;
   }
   
   
@@ -423,16 +275,7 @@ export class AppointmentsViewModel {
         this.specialties = specialtyData;
         this.appointments = appointmentData;
         this.schedules = scheduleData;
-        this.selectedDoctorAppointments = [];
-
-        if (!this.bookingForm.selectedDate && this.availableDates.length) {
-          this.bookingForm.selectedDate = this.availableDates[0];
-        }
       });
-
-      if (this.bookingForm.doctorId) {
-        await this.loadSelectedDoctorAppointments();
-      }
     } catch (error) {
       runInAction(() => {
         this.errorMessage = error instanceof Error ? error.message : "No se pudo cargar el panel.";
@@ -440,27 +283,6 @@ export class AppointmentsViewModel {
     } finally {
       runInAction(() => {
         this.loading = false;
-      });
-    }
-  }
-
-  async loadSelectedDoctorAppointments() {
-    if (!this.bookingForm.doctorId) {
-      runInAction(() => {
-        this.selectedDoctorAppointments = [];
-      });
-      return;
-    }
-
-    try {
-      const doctorAppointments = await this.appointmentRepository.getByDoctorId(this.bookingForm.doctorId);
-      runInAction(() => {
-        this.selectedDoctorAppointments = doctorAppointments;
-      });
-    } catch (error) {
-      runInAction(() => {
-        this.selectedDoctorAppointments = [];
-        this.errorMessage = error instanceof Error ? error.message : "No se pudo cargar la disponibilidad del doctor.";
       });
     }
   }
@@ -546,27 +368,33 @@ export class AppointmentsViewModel {
         return false;
       }
 
-      if (!this.bookingForm.selectedDate || !this.bookingForm.selectedSlot) {
-        this.errorMessage = "Selecciona un día disponible y uno de los horarios del doctor.";
+      if (!this.bookingForm.selectedSlot) {
+        this.errorMessage = "Selecciona la fecha y hora para agendar la cita.";
         return false;
       }
 
-      const selectedSlot = this.availableSlots.find((slot) => slot.start === this.bookingForm.selectedSlot);
-      if (!selectedSlot) {
-        this.errorMessage = "El horario seleccionado ya no está disponible. Elige otro bloque.";
+      const selectedDateTime = new Date(this.bookingForm.selectedSlot);
+      if (Number.isNaN(selectedDateTime.getTime())) {
+        this.errorMessage = "La fecha y hora seleccionada no es válida.";
         return false;
       }
 
-      if (new Date(selectedSlot.start) < new Date()) {
+      if (selectedDateTime < new Date()) {
         this.errorMessage = "No se pueden agendar citas en fechas u horas anteriores.";
         return false;
       }
 
+      const selectedSlotStart = selectedDateTime.toISOString();
+      const selectedSlotEnd = addMinutes(
+        selectedDateTime,
+        this.selectedDoctorSpecialty?.appointmentDurationMinutes ?? 30
+      ).toISOString();
+
       await this.appointmentRepository.create({
         doctorId: this.bookingForm.doctorId,
         patientId: this.currentPatient.id,
-        startDateTime: selectedSlot.start,
-        endDateTime: selectedSlot.end,
+        startDateTime: selectedSlotStart,
+        endDateTime: selectedSlotEnd,
         durationMinutes: this.selectedDoctorSpecialty?.appointmentDurationMinutes ?? 30,
         reason: this.bookingForm.reason.trim() || undefined,
         status: "Scheduled",
@@ -576,7 +404,6 @@ export class AppointmentsViewModel {
       runInAction(() => {
         this.bookingForm = {
           doctorId: "",
-          selectedDate: "",
           selectedSlot: "",
           reason: "",
         };
@@ -628,15 +455,8 @@ export class AppointmentsViewModel {
     }
   }
 
-  initializeBookingDate() {
-    if (!this.bookingForm.selectedDate && this.availableDates.length) {
-      this.bookingForm.selectedDate = this.availableDates[0];
-    }
-  }
-
   getSuggestedDateTime() {
-    const slot = this.availableSlots[0];
-    return slot ? toDateTimeLocalValue(new Date(slot.start)) : toDateTimeLocalValue(new Date(Date.now() + 3600000));
+    return toDateTimeLocalValue(new Date(Date.now() + 3600000));
   }
 }
 
