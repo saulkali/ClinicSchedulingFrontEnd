@@ -19,6 +19,7 @@ import { useState } from "react";
 import type { AppointmentEntity } from "../common/entities/AppointmentEntity";
 import type { AppointmentsViewModel } from "../viewmodels/AppointmentsViewModel";
 import { dayOptions, formatDateTime, getStatusColor } from "../viewmodels/AppointmentsViewModel";
+import { CancellationReasonDialog } from "./components/CancellationReasonDialog";
 import { MaterialCalendar } from "./components/MaterialCalendar";
 
 type AppointmentsViewMode = "appointments" | "calendar" | "booking" | "schedule";
@@ -36,11 +37,9 @@ function AppointmentList({
 }: {
   appointments: AppointmentEntity[];
   emptyText: string;
-  onCancel?: (appointment: AppointmentEntity, cancellationReason?: string) => void;
+  onCancel?: (appointment: AppointmentEntity) => void;
   onComplete?: (appointment: AppointmentEntity) => void;
 }) {
-  const [cancelReasons, setCancelReasons] = useState<Record<string, string>>({});
-
   if (!appointments.length) {
     return <Alert severity="info">{emptyText}</Alert>;
   }
@@ -89,27 +88,9 @@ function AppointmentList({
                       </Button>
                     ) : null}
                     {canCancel ? (
-                      <Stack spacing={1.25}>
-                        <TextField
-                          label="Motivo de cancelación"
-                          placeholder="Escribe el motivo"
-                          size="small"
-                          value={cancelReasons[appointment.id] ?? ""}
-                          onChange={(event) =>
-                            setCancelReasons((previous) => ({
-                              ...previous,
-                              [appointment.id]: event.target.value,
-                            }))
-                          }
-                        />
-                        <Button
-                          color="error"
-                          variant="outlined"
-                          onClick={() => onCancel(appointment, cancelReasons[appointment.id]?.trim() || undefined)}
-                        >
-                          Cancelar cita
-                        </Button>
-                      </Stack>
+                      <Button color="error" variant="outlined" onClick={() => onCancel(appointment)}>
+                        Cancelar cita
+                      </Button>
                     ) : null}
                   </Stack>
                 ) : null}
@@ -125,6 +106,33 @@ function AppointmentList({
 export const AppointmentsView = observer(function AppointmentsView({ mode, viewModel }: AppointmentsViewProps) {
   const canCancel = viewModel.currentRole === "PATIENT";
   const canComplete = viewModel.currentRole === "DOCTOR";
+  const [appointmentToCancel, setAppointmentToCancel] = useState<AppointmentEntity | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+
+  const handleOpenCancellationDialog = (appointment: AppointmentEntity) => {
+    setAppointmentToCancel(appointment);
+    setCancellationReason("");
+  };
+
+  const handleCloseCancellationDialog = () => {
+    setAppointmentToCancel(null);
+    setCancellationReason("");
+  };
+
+  const handleConfirmCancellation = async () => {
+    if (!appointmentToCancel) {
+      return;
+    }
+
+    const cancelled = await viewModel.cancelAppointment(
+      appointmentToCancel,
+      cancellationReason.trim() || undefined
+    );
+
+    if (cancelled) {
+      handleCloseCancellationDialog();
+    }
+  };
 
   if (mode === "appointments") {
     return (
@@ -137,8 +145,15 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
         <AppointmentList
           appointments={viewModel.filteredAppointments}
           emptyText="No hay citas registradas para este rol todavía."
-          onCancel={canCancel ? (appointment, cancellationReason) => void viewModel.cancelAppointment(appointment, cancellationReason) : undefined}
+          onCancel={canCancel ? handleOpenCancellationDialog : undefined}
           onComplete={canComplete ? (appointment) => void viewModel.completeAppointment(appointment) : undefined}
+        />
+        <CancellationReasonDialog
+          open={Boolean(appointmentToCancel)}
+          reason={cancellationReason}
+          onReasonChange={setCancellationReason}
+          onConfirm={() => void handleConfirmCancellation()}
+          onClose={handleCloseCancellationDialog}
         />
       </Stack>
     );
@@ -314,8 +329,15 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
       <AppointmentList
         appointments={viewModel.calendarAppointments}
         emptyText="No hay citas para mostrar en el calendario."
-        onCancel={canCancel ? (appointment, cancellationReason) => void viewModel.cancelAppointment(appointment, cancellationReason) : undefined}
+        onCancel={canCancel ? handleOpenCancellationDialog : undefined}
         onComplete={canComplete ? (appointment) => void viewModel.completeAppointment(appointment) : undefined}
+      />
+      <CancellationReasonDialog
+        open={Boolean(appointmentToCancel)}
+        reason={cancellationReason}
+        onReasonChange={setCancellationReason}
+        onConfirm={() => void handleConfirmCancellation()}
+        onClose={handleCloseCancellationDialog}
       />
     </Stack>
   );
