@@ -147,6 +147,7 @@ export class AppointmentsViewModel {
   setBookingDate(date: string) {
     this.bookingForm.selectedDate = date;
     this.bookingForm.selectedSlot = "";
+    void this.loadSelectedDoctorAppointments();
   }
 
   setBookingSlot(slot: string) {
@@ -302,10 +303,10 @@ export class AppointmentsViewModel {
           const isPast = pointer <= now;
 
           if (!overlaps && !isPast) {
-            slots.push({
+              slots.push({
               start: pointer.toISOString(),
               end: slotEnd.toISOString(),
-              label: `${pointer.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })} - ${slotEnd.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}`,
+              label: `${pointer.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })} - ${slotEnd.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`,
             });
           }
 
