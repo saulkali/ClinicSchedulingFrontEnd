@@ -216,14 +216,21 @@ export class AppointmentsViewModel {
       .sort((left, right) => left.dayOfWeek - right.dayOfWeek || left.startTime.localeCompare(right.startTime));
   }
 
-  get bookingCalendarDates() {
+  get bookingEnabledDates() {
+    if (!this.bookingForm.doctorId || !this.selectedDoctorSchedules.length) {
+      return [];
+    }
+
+    const workingDays = new Set(this.selectedDoctorSchedules.map((schedule) => schedule.dayOfWeek));
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return Array.from({ length: 60 }, (_, index) => {
       const date = new Date(today);
       date.setDate(today.getDate() + index);
-      return toDateOnly(date);
-    });
+      const jsDay = date.getDay();
+      const dayOfWeek = jsDay === 0 ? 7 : jsDay;
+      return workingDays.has(dayOfWeek) ? toDateOnly(date) : null;
+    }).filter((date): date is string => Boolean(date));
   }
 
   get availableSlots() {

@@ -235,16 +235,35 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
   }
 
   if (mode === "booking") {
-    const enabledDates = new Set(viewModel.bookingCalendarDates);
-    const eventsByDate = viewModel.bookingForm.selectedDate && viewModel.availableSlots.length
-      ? {
-          [viewModel.bookingForm.selectedDate]: viewModel.availableSlots.map((slot, index) => ({
-            id: `${slot.startDateTime}-${index}`,
-            title: `${new Date(slot.startDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })} - ${new Date(slot.endDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`,
-            color: "primary" as const,
-          })),
-        }
-      : {};
+    const enabledDates = new Set(viewModel.bookingEnabledDates);
+    const eventsByDate = viewModel.bookingEnabledDates.reduce<Record<string, { id: string; title: string; color: "primary" }[]>>(
+      (accumulator, dateKey) => {
+        const date = new Date(`${dateKey}T00:00:00`);
+        const jsDay = date.getDay();
+        const dayOfWeek = jsDay === 0 ? 7 : jsDay;
+        const schedulesForDay = viewModel.selectedDoctorSchedules.filter((schedule) => schedule.dayOfWeek === dayOfWeek);
+
+        accumulator[dateKey] = schedulesForDay.map((schedule) => ({
+          id: `${schedule.id}-${dateKey}`,
+          title: `${schedule.startTime.slice(0, 5)} - ${schedule.endTime.slice(0, 5)}`,
+          color: "primary",
+        }));
+
+        return accumulator;
+      },
+      {}
+    );
+
+    if (viewModel.bookingForm.selectedDate && viewModel.availableSlots.length) {
+      eventsByDate[viewModel.bookingForm.selectedDate] = [
+        ...(eventsByDate[viewModel.bookingForm.selectedDate] ?? []),
+        ...viewModel.availableSlots.map((slot, index) => ({
+          id: `${slot.startDateTime}-available-${index}`,
+          title: `Libre: ${new Date(slot.startDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`,
+          color: "primary" as const,
+        })),
+      ];
+    }
 
     return (
       <Grid container spacing={2.5}>
@@ -254,7 +273,7 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
               <Stack spacing={2}>
                 <Typography variant="h6" fontWeight={800}>Agendar una cita</Typography>
                 <Alert severity="info">
-                  Selecciona el doctor, luego el día en el calendario y finalmente uno de los horarios disponibles.
+                  Selecciona el doctor, luego un día laboral en el calendario y finalmente uno de los horarios disponibles.
                 </Alert>
                 {viewModel.shouldShowCancellationAlert ? (
                   <Alert severity="warning">
@@ -301,7 +320,7 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
                     <Alert severity="warning">
                       {viewModel.bookingForm.doctorId && viewModel.bookingForm.selectedDate
                         ? "No hay horarios disponibles para la fecha seleccionada."
-                        : "Selecciona un doctor y una fecha para cargar horarios disponibles."}
+                        : "Selecciona un doctor y un día laboral para cargar horarios disponibles."}
                     </Alert>
                   )}
                 </Stack>
