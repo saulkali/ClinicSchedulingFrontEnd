@@ -1,5 +1,5 @@
 import { makeAutoObservable, runInAction } from "mobx";
-import type { AppointmentEntity, UpdateAppointmentEntity } from "../common/entities/AppointmentEntity";
+import type { AppointmentEntity, DoctorBusySlotEntity, UpdateAppointmentEntity } from "../common/entities/AppointmentEntity";
 import type { DoctorEntity } from "../common/entities/DoctorEntity";
 import type { DoctorScheduleEntity } from "../common/entities/DoctorScheduleEntity";
 import type { PatientEntity } from "../common/entities/PatientEntity";
@@ -84,6 +84,7 @@ export class AppointmentsViewModel {
   specialties: SpecialtyEntity[] = [];
   appointments: AppointmentEntity[] = [];
   schedules: DoctorScheduleEntity[] = [];
+  selectedDoctorAppointments: DoctorBusySlotEntity[] = [];
 
   specialtyForm = { name: "", appointmentDurationMinutes: "30" };
   scheduleForm = { dayOfWeek: "1", startTime: "08:00", endTime: "17:00" };
@@ -139,11 +140,14 @@ export class AppointmentsViewModel {
     this.bookingForm.doctorId = doctorId;
     this.bookingForm.selectedDate = "";
     this.bookingForm.selectedSlot = "";
+    this.selectedDoctorAppointments = [];
+    void this.loadSelectedDoctorAppointments();
   }
 
   setBookingDate(date: string) {
     this.bookingForm.selectedDate = date;
     this.bookingForm.selectedSlot = "";
+    void this.loadSelectedDoctorAppointments();
   }
 
   setBookingSlot(slot: string) {
@@ -276,7 +280,7 @@ export class AppointmentsViewModel {
     const duration = this.selectedDoctorSpecialty.appointmentDurationMinutes;
     const now = new Date();
 
-    const doctorAppointments = this.appointments.filter(
+    const doctorAppointments = this.selectedDoctorAppointments.filter(
       (appointment) =>
         appointment.doctorId === this.bookingForm.doctorId &&
         !["cancelled", "canceled"].includes(normalizeStatus(appointment.status)) &&
@@ -299,10 +303,10 @@ export class AppointmentsViewModel {
           const isPast = pointer <= now;
 
           if (!overlaps && !isPast) {
-            slots.push({
+              slots.push({
               start: pointer.toISOString(),
               end: slotEnd.toISOString(),
-              label: `${pointer.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })} - ${slotEnd.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}`,
+              label: `${pointer.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })} - ${slotEnd.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`,
             });
           }
 
@@ -344,13 +348,21 @@ export class AppointmentsViewModel {
     this.errorMessage = "";
 
     try {
-      const [doctorData, patientData, specialtyData, appointmentData, scheduleData] = await Promise.all([
+      const [doctorData, patientData, specialtyData, scheduleData] = await Promise.all([
         this.doctorRepository.getAll(),
         this.patientRepository.getAll(),
         this.specialtyRepository.getAll(),
-        this.appointmentRepository.getAll(),
         this.doctorScheduleRepository.getAll(),
       ]);
+
+      const currentPatient = patientData.find((patient) => patient.userId === sessionStore.userId) ?? null;
+
+      const appointmentData =
+        this.currentRole === "ADMIN"
+          ? await this.appointmentRepository.getAll()
+          : this.currentRole === "PATIENT" && currentPatient
+              ? await this.appointmentRepository.getByPatientId(currentPatient.id)
+              : await this.appointmentRepository.getAll();
 
       runInAction(() => {
         this.doctors = doctorData;
@@ -358,11 +370,16 @@ export class AppointmentsViewModel {
         this.specialties = specialtyData;
         this.appointments = appointmentData;
         this.schedules = scheduleData;
+        this.selectedDoctorAppointments = [];
 
         if (!this.bookingForm.selectedDate && this.availableDates.length) {
           this.bookingForm.selectedDate = this.availableDates[0];
         }
       });
+
+      if (this.bookingForm.doctorId) {
+        await this.loadSelectedDoctorAppointments();
+      }
     } catch (error) {
       runInAction(() => {
         this.errorMessage = error instanceof Error ? error.message : "No se pudo cargar el panel.";
@@ -370,6 +387,27 @@ export class AppointmentsViewModel {
     } finally {
       runInAction(() => {
         this.loading = false;
+      });
+    }
+  }
+
+  async loadSelectedDoctorAppointments() {
+    if (!this.bookingForm.doctorId) {
+      runInAction(() => {
+        this.selectedDoctorAppointments = [];
+      });
+      return;
+    }
+
+    try {
+      const doctorAppointments = await this.appointmentRepository.getByDoctorId(this.bookingForm.doctorId);
+      runInAction(() => {
+        this.selectedDoctorAppointments = doctorAppointments;
+      });
+    } catch (error) {
+      runInAction(() => {
+        this.selectedDoctorAppointments = [];
+        this.errorMessage = error instanceof Error ? error.message : "No se pudo cargar la disponibilidad del doctor.";
       });
     }
   }
