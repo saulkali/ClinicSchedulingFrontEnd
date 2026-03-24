@@ -29,3 +29,13 @@ export type AppointmentEntity = {
   createdAt: string;
   modifiedAt: string;
 };
+
+export type DoctorBusySlotEntity = {
+  id: string;
+  doctorId: string;
+  startDateTime: string;
+  endDateTime: string;
+  durationMinutes: number;
+  status: string;
+  isActive: boolean;
+};
