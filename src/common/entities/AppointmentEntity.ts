@@ -30,12 +30,15 @@ export type AppointmentEntity = {
   modifiedAt: string;
 };
 
-export type DoctorBusySlotEntity = {
-  id: string;
-  doctorId: string;
+export type DoctorAvailableSlotDto = {
   startDateTime: string;
   endDateTime: string;
+};
+
+export type AppointmentAvailableDoctorDto = {
+  doctorId: string;
+  date: string;
+  dayOfWeek: number;
   durationMinutes: number;
-  status: string;
-  isActive: boolean;
+  availableSlots: DoctorAvailableSlotDto[];
 };

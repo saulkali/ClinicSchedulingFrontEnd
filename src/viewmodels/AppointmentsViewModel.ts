@@ -1,5 +1,5 @@
 import { makeAutoObservable, runInAction } from "mobx";
-import type { AppointmentEntity, UpdateAppointmentEntity } from "../common/entities/AppointmentEntity";
+import type { AppointmentAvailableDoctorDto, AppointmentEntity, UpdateAppointmentEntity } from "../common/entities/AppointmentEntity";
 import type { DoctorEntity } from "../common/entities/DoctorEntity";
 import type { DoctorScheduleEntity } from "../common/entities/DoctorScheduleEntity";
 import type { PatientEntity } from "../common/entities/PatientEntity";
@@ -69,9 +69,11 @@ export class AppointmentsViewModel {
   scheduleForm = { dayOfWeek: "1", startTime: "08:00", endTime: "17:00" };
   bookingForm = {
     doctorId: "",
+    selectedDate: "",
     selectedSlot: "",
     reason: "",
   };
+  selectedDoctorAvailability: AppointmentAvailableDoctorDto | null = null;
   calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
   private readonly doctorRepository: IDoctorRepository;
@@ -116,7 +118,16 @@ export class AppointmentsViewModel {
 
   setBookingDoctor(doctorId: string) {
     this.bookingForm.doctorId = doctorId;
+    this.bookingForm.selectedDate = "";
     this.bookingForm.selectedSlot = "";
+    this.selectedDoctorAvailability = null;
+  }
+
+  setBookingDate(date: string) {
+    this.bookingForm.selectedDate = date;
+    this.bookingForm.selectedSlot = "";
+    this.selectedDoctorAvailability = null;
+    void this.loadDoctorAvailability();
   }
 
   setBookingSlot(slot: string) {
@@ -203,6 +214,20 @@ export class AppointmentsViewModel {
     return this.schedules
       .filter((schedule) => schedule.doctorId === this.bookingForm.doctorId && schedule.isActive)
       .sort((left, right) => left.dayOfWeek - right.dayOfWeek || left.startTime.localeCompare(right.startTime));
+  }
+
+  get bookingCalendarDates() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: 60 }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() + index);
+      return toDateOnly(date);
+    });
+  }
+
+  get availableSlots() {
+    return this.selectedDoctorAvailability?.availableSlots ?? [];
   }
 
   get currentPatientCancelledAppointments() {
@@ -296,6 +321,30 @@ export class AppointmentsViewModel {
     }
   }
 
+  async loadDoctorAvailability() {
+    if (!this.bookingForm.doctorId || !this.bookingForm.selectedDate) {
+      runInAction(() => {
+        this.selectedDoctorAvailability = null;
+      });
+      return;
+    }
+
+    try {
+      const availability = await this.appointmentRepository.getDoctorAvailability(
+        this.bookingForm.doctorId,
+        this.bookingForm.selectedDate
+      );
+      runInAction(() => {
+        this.selectedDoctorAvailability = availability;
+      });
+    } catch (error) {
+      runInAction(() => {
+        this.selectedDoctorAvailability = null;
+        this.errorMessage = error instanceof Error ? error.message : "No se pudo cargar la disponibilidad del doctor.";
+      });
+    }
+  }
+
   async createSpecialty() {
     try {
       if (!this.specialtyForm.name.trim()) {
@@ -368,12 +417,18 @@ export class AppointmentsViewModel {
         return false;
       }
 
-      if (!this.bookingForm.selectedSlot) {
-        this.errorMessage = "Selecciona la fecha y hora para agendar la cita.";
+      if (!this.bookingForm.selectedDate || !this.bookingForm.selectedSlot) {
+        this.errorMessage = "Selecciona un día en el calendario y un horario disponible.";
         return false;
       }
 
-      const selectedDateTime = new Date(this.bookingForm.selectedSlot);
+      const selectedSlot = this.availableSlots.find((slot) => slot.startDateTime === this.bookingForm.selectedSlot);
+      if (!selectedSlot) {
+        this.errorMessage = "El horario seleccionado no está disponible. Intenta con otro bloque.";
+        return false;
+      }
+
+      const selectedDateTime = new Date(selectedSlot.startDateTime);
       if (Number.isNaN(selectedDateTime.getTime())) {
         this.errorMessage = "La fecha y hora seleccionada no es válida.";
         return false;
@@ -384,8 +439,8 @@ export class AppointmentsViewModel {
         return false;
       }
 
-      const selectedSlotStart = selectedDateTime.toISOString();
-      const selectedSlotEnd = addMinutes(
+      const selectedSlotStart = selectedSlot.startDateTime;
+      const selectedSlotEnd = selectedSlot.endDateTime || addMinutes(
         selectedDateTime,
         this.selectedDoctorSpecialty?.appointmentDurationMinutes ?? 30
       ).toISOString();
@@ -404,9 +459,11 @@ export class AppointmentsViewModel {
       runInAction(() => {
         this.bookingForm = {
           doctorId: "",
+          selectedDate: "",
           selectedSlot: "",
           reason: "",
         };
+        this.selectedDoctorAvailability = null;
       });
       await this.refreshAll("Cita agendada correctamente.");
       return true;

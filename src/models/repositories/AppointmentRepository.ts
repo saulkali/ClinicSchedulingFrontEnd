@@ -1,4 +1,5 @@
 import type {
+  AppointmentAvailableDoctorDto,
   AppointmentEntity,
   CreateAppointmentEntity,
   UpdateAppointmentEntity,
@@ -25,6 +26,20 @@ export class AppointmentRepository implements IAppointmentRepository {
       return data;
     } catch (error) {
       throw new Error(getApiErrorMessage(error, "No fue posible consultar las citas del paciente."));
+    }
+  }
+
+  async getDoctorAvailability(doctorId: string, date: string) {
+    try {
+      const { data } = await this.client.get<AppointmentAvailableDoctorDto>(
+        `${env.appointmentPath}/doctor/${doctorId}/availability`,
+        {
+          params: { date },
+        }
+      );
+      return data;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, "No fue posible consultar la disponibilidad del doctor."));
     }
   }
 

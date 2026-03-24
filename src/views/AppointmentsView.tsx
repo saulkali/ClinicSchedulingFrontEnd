@@ -235,15 +235,26 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
   }
 
   if (mode === "booking") {
+    const enabledDates = new Set(viewModel.bookingCalendarDates);
+    const eventsByDate = viewModel.bookingForm.selectedDate && viewModel.availableSlots.length
+      ? {
+          [viewModel.bookingForm.selectedDate]: viewModel.availableSlots.map((slot, index) => ({
+            id: `${slot.startDateTime}-${index}`,
+            title: `${new Date(slot.startDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })} - ${new Date(slot.endDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`,
+            color: "primary" as const,
+          })),
+        }
+      : {};
+
     return (
       <Grid container spacing={2.5}>
-        <Grid size={{ xs: 12, lg: 6 }}>
+        <Grid size={{ xs: 12, lg: 4 }}>
           <Card sx={{ borderRadius: 4 }}>
             <CardContent>
               <Stack spacing={2}>
                 <Typography variant="h6" fontWeight={800}>Agendar una cita</Typography>
                 <Alert severity="info">
-                  Agenda manual: selecciona doctor, fecha y hora. La validación de horarios del doctor se hará fuera del portal.
+                  Selecciona el doctor, luego el día en el calendario y finalmente uno de los horarios disponibles.
                 </Alert>
                 {viewModel.shouldShowCancellationAlert ? (
                   <Alert severity="warning">
@@ -272,15 +283,28 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
                   InputProps={{ readOnly: true }}
                 />
 
-                <TextField
-                  fullWidth
-                  label="Fecha y hora"
-                  type="datetime-local"
-                  value={viewModel.bookingForm.selectedSlot}
-                  onChange={(event) => viewModel.setBookingSlot(event.target.value)}
-                  helperText="Selecciona manualmente la fecha y hora de inicio."
-                  InputLabelProps={{ shrink: true }}
-                />
+                <Stack spacing={1}>
+                  <Typography fontWeight={700}>Horarios disponibles</Typography>
+                  {viewModel.availableSlots.length ? (
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {viewModel.availableSlots.map((slot) => (
+                        <Chip
+                          key={slot.startDateTime}
+                          label={`${new Date(slot.startDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })} - ${new Date(slot.endDateTime).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`}
+                          clickable
+                          color={viewModel.bookingForm.selectedSlot === slot.startDateTime ? "primary" : "default"}
+                          onClick={() => viewModel.setBookingSlot(slot.startDateTime)}
+                        />
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Alert severity="warning">
+                      {viewModel.bookingForm.doctorId && viewModel.bookingForm.selectedDate
+                        ? "No hay horarios disponibles para la fecha seleccionada."
+                        : "Selecciona un doctor y una fecha para cargar horarios disponibles."}
+                    </Alert>
+                  )}
+                </Stack>
 
                 <TextField
                   fullWidth
@@ -297,6 +321,18 @@ export const AppointmentsView = observer(function AppointmentsView({ mode, viewM
               </Stack>
             </CardContent>
           </Card>
+        </Grid>
+        <Grid size={{ xs: 12, lg: 8 }}>
+          <MaterialCalendar
+            month={viewModel.calendarMonth}
+            selectedDate={viewModel.bookingForm.selectedDate}
+            enabledDates={enabledDates}
+            eventsByDate={eventsByDate}
+            helperText="Calendario para seleccionar el día y consultar disponibilidad del doctor."
+            onPreviousMonth={viewModel.goToPreviousMonth}
+            onNextMonth={viewModel.goToNextMonth}
+            onSelectDate={(dateKey) => viewModel.setBookingDate(dateKey)}
+          />
         </Grid>
       </Grid>
     );
