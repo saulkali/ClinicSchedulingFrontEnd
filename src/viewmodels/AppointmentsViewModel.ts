@@ -93,6 +93,10 @@ export class AppointmentsViewModel {
     selectedSlot: "",
     reason: "",
   };
+  bookingFilters = {
+    doctorQuery: "",
+    specialtyId: "all",
+  };
   calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
   private readonly doctorRepository: IDoctorRepository;
@@ -154,6 +158,13 @@ export class AppointmentsViewModel {
     this.bookingForm.reason = reason;
   }
 
+  setBookingFilter<K extends keyof AppointmentsViewModel["bookingFilters"]>(
+    key: K,
+    value: AppointmentsViewModel["bookingFilters"][K]
+  ) {
+    this.bookingFilters[key] = value;
+  }
+
   setCalendarMonth(date: Date) {
     this.calendarMonth = new Date(date.getFullYear(), date.getMonth(), 1);
   }
@@ -180,6 +191,17 @@ export class AppointmentsViewModel {
 
   get visibleDoctors() {
     return this.doctors.filter((doctor) => doctor.isActive);
+  }
+
+  get filteredVisibleDoctors() {
+    const query = this.bookingFilters.doctorQuery.trim().toLowerCase();
+    const specialtyId = this.bookingFilters.specialtyId;
+
+    return this.visibleDoctors.filter((doctor) => {
+      const matchesQuery = !query || doctor.name.toLowerCase().includes(query);
+      const matchesSpecialty = specialtyId === "all" || doctor.specialtyId === specialtyId;
+      return matchesQuery && matchesSpecialty;
+    });
   }
 
   get visibleSpecialties() {

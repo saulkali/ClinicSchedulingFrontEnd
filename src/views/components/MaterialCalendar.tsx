@@ -17,6 +17,8 @@ type MaterialCalendarProps = {
   enabledDates?: Set<string>;
   eventsByDate?: Record<string, MaterialCalendarEvent[]>;
   helperText?: string;
+  maxEventsPerDay?: number;
+  showAvailabilityChips?: boolean;
   onPreviousMonth: () => void;
   onNextMonth: () => void;
   onSelectDate?: (dateKey: string) => void;
@@ -28,11 +30,14 @@ export function MaterialCalendar({
   enabledDates,
   eventsByDate = {},
   helperText,
+  maxEventsPerDay = 3,
+  showAvailabilityChips = true,
   onPreviousMonth,
   onNextMonth,
   onSelectDate,
 }: MaterialCalendarProps) {
   const days = createMonthMatrix(month);
+  const todayKey = toDateKey(new Date());
 
   return (
     <Card sx={{ borderRadius: 4, p: 2.5 }}>
@@ -73,6 +78,7 @@ export function MaterialCalendar({
           const isCurrentMonth = isSameMonth(day, month);
           const isEnabled = enabledDates ? enabledDates.has(dateKey) : true;
           const isSelected = selectedDate === dateKey;
+          const isToday = todayKey === dateKey;
           const events = eventsByDate[dateKey] ?? [];
 
           return (
@@ -88,7 +94,7 @@ export function MaterialCalendar({
                 borderRadius: 3,
                 border: isSelected ? "2px solid" : "1px solid",
                 borderColor: isSelected ? "primary.main" : "divider",
-                bgcolor: isEnabled ? "background.paper" : "action.hover",
+                bgcolor: isToday ? "rgba(25, 118, 210, 0.08)" : isEnabled ? "background.paper" : "action.hover",
                 opacity: isCurrentMonth ? 1 : 0.45,
                 p: 1,
                 cursor: isEnabled && onSelectDate ? "pointer" : "default",
@@ -99,10 +105,10 @@ export function MaterialCalendar({
               <Stack spacing={0.75}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                   <Typography fontWeight={700}>{day.getDate()}</Typography>
-                  {isEnabled ? <Chip label="Disponible" size="small" color="primary" variant="outlined" /> : null}
+                  {isEnabled && showAvailabilityChips ? <Chip label="Disponible" size="small" color="primary" variant="outlined" /> : null}
                 </Stack>
 
-                {events.slice(0, 3).map((event) => (
+                {events.slice(0, maxEventsPerDay).map((event) => (
                   <Chip
                     key={event.id}
                     label={event.title}
@@ -112,9 +118,9 @@ export function MaterialCalendar({
                   />
                 ))}
 
-                {events.length > 3 ? (
+                {events.length > maxEventsPerDay ? (
                   <Typography variant="caption" color="text.secondary">
-                    +{events.length - 3} más
+                    +{events.length - maxEventsPerDay} más
                   </Typography>
                 ) : null}
               </Stack>

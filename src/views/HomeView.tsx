@@ -156,7 +156,13 @@ export const HomeView = observer(function HomeView() {
   const isLoggedIn = sessionStore.isLoggedIn;
   const currentUserId = sessionStore.userId;
   const currentRole = sessionStore.normalizedRole || "PATIENT";
-  const navItems = useMemo(() => getNavItemsByRole(currentRole), [currentRole]);
+  const navItems = useMemo(
+    () =>
+      isLoggedIn
+        ? getNavItemsByRole(currentRole)
+        : ([{ key: "overview", label: "Inicio", icon: <LocalHospitalIcon /> }] as NavItem[]),
+    [currentRole, isLoggedIn]
+  );
   const currentCopy = roleCopy[currentRole] ?? roleCopy.PATIENT;
   const needsProfileCompletion = Boolean(
     isLoggedIn &&
@@ -300,12 +306,20 @@ export const HomeView = observer(function HomeView() {
   const renderGuestSection = () => (
     <Grid container spacing={2.5}>
       <Grid size={{ xs: 12, md: 8 }}>
-        <Card sx={{ borderRadius: 5, background: "linear-gradient(135deg, #1565c0 0%, #42a5f5 100%)", color: "white" }}>
+        <Card
+          sx={{
+            borderRadius: 5,
+            background: "linear-gradient(135deg, #1565c0 0%, #42a5f5 100%)",
+            color: "white",
+            transition: "transform 0.25s ease, box-shadow 0.25s ease",
+            "&:hover": { transform: "translateY(-3px)", boxShadow: 8 },
+          }}
+        >
           <CardContent sx={{ p: 4 }}>
             <Stack spacing={2.5}>
-              <Typography variant="h3" fontWeight={900}>Sistema de citas por rol</Typography>
+              <Typography variant="h3" fontWeight={900}>Sistema inteligente de citas médicas</Typography>
               <Typography>
-                El sistema detecta si el usuario es ADMIN, PATIENT o DOCTOR y muestra su dashboard correspondiente para administrar la clínica, buscar doctores o planificar el horario laboral.
+                Gestiona agenda médica, disponibilidad por doctor y seguimiento de citas en una sola plataforma. Inicia sesión para habilitar la gestión operativa por rol.
               </Typography>
               <Button variant="contained" color="secondary" startIcon={<LoginIcon />} onClick={() => setLoginOpen(true)} sx={{ alignSelf: "flex-start" }}>
                 Iniciar sesión para continuar
@@ -317,9 +331,9 @@ export const HomeView = observer(function HomeView() {
       <Grid size={{ xs: 12, md: 4 }}>
         <Stack spacing={2}>
           {[
-            { title: "ADMIN", text: "Visualiza pacientes, doctores, especialidades, roles y calendarios desde un tablero operativo." },
-            { title: "PATIENT", text: "Busca doctores, usa un calendario visual y agenda citas según disponibilidad real del doctor." },
-            { title: "DOCTOR", text: "Organiza tu día, crea horarios laborales y controla tus citas activas desde vistas separadas." },
+            { title: "Agenda centralizada", text: "Consulta disponibilidad real y evita cruces de horarios con validación automática de bloques." },
+            { title: "Portal de pacientes", text: "Encuentra doctores por especialidad, agenda en minutos y revisa estados de tus citas." },
+            { title: "Portal médico", text: "Administra horario laboral, atiende citas programadas y revisa tu calendario interactivo." },
           ].map((item) => (
             <Card key={item.title} sx={{ borderRadius: 4 }}>
               <CardContent>
@@ -455,32 +469,51 @@ export const HomeView = observer(function HomeView() {
         </Card>
       </Box>
       <List sx={{ px: 1.5 }}>
-        {navItems.map((item) => (
-          <ListItemButton
-            key={item.key}
-            selected={section === item.key}
-            onClick={() => {
-              setSection(item.key);
-              setMobileOpen(false);
-            }}
-            sx={{
-              borderRadius: 3,
-              mb: 1,
-              color: "white",
-              "&.Mui-selected": { bgcolor: "rgba(255,255,255,0.16)" },
-              "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
-            }}
-          >
-            <ListItemIcon sx={{ color: "white", minWidth: 40 }}>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.label} />
-          </ListItemButton>
-        ))}
+        {sessionStore.isLoggedIn ? (
+          navItems.map((item) => (
+            <ListItemButton
+              key={item.key}
+              selected={section === item.key}
+              onClick={() => {
+                setSection(item.key);
+                setMobileOpen(false);
+              }}
+              sx={{
+                borderRadius: 3,
+                mb: 1,
+                color: "white",
+                "&.Mui-selected": { bgcolor: "rgba(255,255,255,0.16)" },
+                "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
+              }}
+            >
+              <ListItemIcon sx={{ color: "white", minWidth: 40 }}>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.label} />
+            </ListItemButton>
+          ))
+        ) : (
+          <Card sx={{ borderRadius: 3, bgcolor: "rgba(255,255,255,0.08)", color: "white" }}>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                Vista informativa
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Inicia sesión para habilitar agenda, calendario y administración de citas.
+              </Typography>
+            </CardContent>
+          </Card>
+        )}
       </List>
       <Box sx={{ mt: "auto", p: 2 }}>
         <Stack spacing={1.25}>
-          <Chip icon={<NotificationsActiveIcon />} label={`Activas: ${appointmentsViewModel.appointmentSummary.active}`} color="success" />
-          <Chip icon={<EventAvailableIcon />} label={`Especialidades: ${appointmentsViewModel.specialties.length}`} color="primary" />
-          <Chip icon={<GroupIcon />} label={`Usuarios clínicos: ${appointmentsViewModel.doctors.length + appointmentsViewModel.patients.length}`} />
+          {sessionStore.isLoggedIn ? (
+            <>
+              <Chip icon={<NotificationsActiveIcon />} label={`Activas: ${appointmentsViewModel.appointmentSummary.active}`} color="success" />
+              <Chip icon={<EventAvailableIcon />} label={`Especialidades: ${appointmentsViewModel.specialties.length}`} color="primary" />
+              <Chip icon={<GroupIcon />} label={`Usuarios clínicos: ${appointmentsViewModel.doctors.length + appointmentsViewModel.patients.length}`} />
+            </>
+          ) : (
+            <Chip icon={<EventAvailableIcon />} label="Inicia sesión para ver métricas" color="primary" />
+          )}
         </Stack>
       </Box>
     </Box>
