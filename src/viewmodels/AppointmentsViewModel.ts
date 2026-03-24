@@ -10,6 +10,7 @@ import type { IDoctorRepository } from "../models/irepositories/IDoctorRepositor
 import type { IDoctorScheduleRepository } from "../models/irepositories/IDoctorScheduleRepository";
 import type { IPatientRepository } from "../models/irepositories/IPatientRepository";
 import type { ISpecialtyRepository } from "../models/irepositories/ISpecialtyRepository";
+import { formatLocalDateTime } from "../common/helpers/DateTimeHelper";
 
 const WORKING_DAY_OFFSET: Record<number, number> = {
   1: 1,
@@ -316,7 +317,59 @@ export class AppointmentsViewModel {
         return slots;
       });
   }
+  get availableSlots() {
+    if (!this.bookingForm.doctorId || !this.bookingForm.selectedDate || !this.selectedDoctorSpecialty) {
+      return [];
+    }
 
+    const date = new Date(`${this.bookingForm.selectedDate}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      return [];
+    }
+
+    const jsDay = date.getDay();
+    const dayOfWeek = jsDay === 0 ? 7 : jsDay;
+    const duration = this.selectedDoctorSpecialty.appointmentDurationMinutes;
+    const now = new Date();
+
+    const doctorAppointments = this.selectedDoctorAppointments.filter(
+      (appointment) =>
+        appointment.doctorId === this.bookingForm.doctorId &&
+        !["cancelled", "canceled"].includes(normalizeStatus(appointment.status)) &&
+        toDateOnly(new Date(appointment.startDateTime)) === this.bookingForm.selectedDate
+    );
+
+    return this.selectedDoctorSchedules
+      .filter((schedule) => schedule.dayOfWeek === dayOfWeek)
+      .flatMap((schedule) => {
+        const slots: { start: string; end: string; label: string }[] = [];
+        let pointer = combineDateAndTime(date, schedule.startTime);
+        const endBoundary = combineDateAndTime(date, schedule.endTime);
+
+        while (addMinutes(pointer, duration) <= endBoundary) {
+          const slotEnd = addMinutes(pointer, duration);
+          const overlaps = doctorAppointments.some((appointment) =>
+            rangesOverlap(pointer, slotEnd, new Date(appointment.startDateTime), new Date(appointment.endDateTime))
+          );
+
+          const isPast = pointer <= now;
+
+          if (!overlaps && !isPast) {
+              slots.push({
+              start: formatLocalDateTime(pointer),
+              end: formatLocalDateTime(slotEnd) ,
+              label: `${pointer.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })} - ${slotEnd.toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit", hour12: false })}`,
+            });
+          }
+
+          pointer = slotEnd;
+        }
+
+        return slots;
+      });
+  }
+  
+  
   get calendarAppointments() {
     return [...this.filteredAppointments].sort(
       (left, right) => new Date(left.startDateTime).getTime() - new Date(right.startDateTime).getTime()
