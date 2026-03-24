@@ -1,0 +1,52 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  vmPath: '/home/netnetwork/clinicscheduling-frontend'
+  imageName: 'clinicscheduling-frontend'
+  containerName: 'clinicscheduling-frontend'
+
+steps:
+- task: CopyFilesOverSSH@0
+  displayName: 'Copy frontend source files to server'
+  inputs:
+    sshEndpoint: 'netnetworkserverssh2'
+    sourceFolder: '$(Build.SourcesDirectory)'
+    contents: |
+      **
+      !**/.git/**
+      !**/node_modules/**
+      !**/dist/**
+      !**/.vs/**
+      !**/.idea/**
+    targetFolder: '$(vmPath)'
+    cleanTargetFolder: true
+    overwrite: true
+
+- task: SSH@0
+  displayName: 'Build image and run frontend container'
+  inputs:
+    sshEndpoint: 'netnetworkserverssh2'
+    runOptions: 'inline'
+    inline: |
+      set -e
+
+      mkdir -p $(vmPath)
+      cd $(vmPath)
+
+      docker build -t $(imageName):latest .
+
+      docker stop $(containerName) || true
+      docker rm $(containerName) || true
+
+      docker run -d \
+        --name $(containerName) \
+        --restart unless-stopped \
+        -p 4445:80 \
+        $(imageName):latest
+
+      docker ps
+      docker image prune -f
