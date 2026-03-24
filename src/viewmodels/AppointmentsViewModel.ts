@@ -418,13 +418,13 @@ export class AppointmentsViewModel {
     }
   }
 
-  async cancelAppointment(appointment: AppointmentEntity) {
+  async cancelAppointment(appointment: AppointmentEntity, cancellationReason?: string) {
     try {
       await this.appointmentRepository.update(
         appointment.id,
         buildAppointmentUpdate(appointment, {
           status: "Cancelled",
-          cancellationReason: "Cancelada desde el portal web.",
+          cancellationReason: cancellationReason?.trim() || "Cancelada desde el portal web.",
         })
       );
       await this.refreshAll("La cita fue cancelada correctamente.");
