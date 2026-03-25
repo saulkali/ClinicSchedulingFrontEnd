@@ -1,157 +1,219 @@
-CLINIC SCHEDULING FRONTEND
+# Clinic Scheduling Frontend
 
-Este proyecto corresponde al frontend de la API ClinicSchedulingAPI. 
-La aplicación fue desarrollada utilizando React.js y se enfoca en consumir los endpoints expuestos por el backend
-para la gestión de doctores, pacientes, citas y disponibilidad.
+Frontend web de **Clinic Scheduling**, construido con **React + TypeScript + Vite** bajo una estructura inspirada en **MVVM (Model-View-ViewModel)**.
 
-REPOSITORIOS
+Este repositorio consume la API de backend para gestionar:
 
-Backend API:
-https://github.com/saulkali/ClinicSchedulingAPI.git
+- Autenticación y sesión por roles.
+- Usuarios, pacientes, doctores y especialidades.
+- Citas médicas y disponibilidad de agenda.
 
-Frontend:
-https://github.com/saulkali/ClinicSchedulingFrontEnd.git
+---
 
+## Tabla de contenido
 
-DEMO
+1. [Resumen del proyecto](#resumen-del-proyecto)
+2. [Stack tecnológico](#stack-tecnológico)
+3. [Estructura del proyecto](#estructura-del-proyecto)
+4. [Arquitectura MVVM aplicada](#arquitectura-mvvm-aplicada)
+5. [Requisitos previos](#requisitos-previos)
+6. [Configuración local](#configuración-local)
+7. [Variables de entorno](#variables-de-entorno)
+8. [Scripts disponibles](#scripts-disponibles)
+9. [Flujo de desarrollo recomendado](#flujo-de-desarrollo-recomendado)
+10. [Build y despliegue](#build-y-despliegue)
+11. [CI/CD](#cicd)
+12. [Recursos relacionados](#recursos-relacionados)
 
-Se puede consultar una demo funcional desplegada en un servidor físico en la siguiente URL:
+---
 
-Frontend:
-http://170.80.240.210:4445/
+## Resumen del proyecto
 
-Swagger Backend:
-http://170.80.240.210:4444/swagger/index.html
+Este frontend implementa una interfaz de gestión clínica con comportamiento condicional por rol, permitiendo separar pantallas y acciones para:
 
+- **ADMIN**
+- **DOCTOR**
+- **PATIENT**
+- Roles de gestión adicionales como **DOCTORS** y **PATIENTS**
 
-ARQUITECTURA
+La aplicación está pensada para evolucionar modularmente, manteniendo aislada la lógica de negocio del render de UI.
 
-El proyecto fue desarrollado utilizando el patrón de arquitectura MVVM (Model-View-ViewModel),
-una arquitectura comúnmente utilizada en aplicaciones que manejan interfaces de usuario complejas.
+---
 
-Ventajas aplicadas en este proyecto:
+## Stack tecnológico
 
-- Separación clara entre UI y lógica de negocio
-- Reutilización de lógica en ViewModels
-- Mejor mantenibilidad del código
-- Escalabilidad para agregar nuevos módulos
-- Manejo centralizado del estado
+- **Framework UI:** React 19
+- **Lenguaje:** TypeScript 5
+- **Bundler:** Vite 8
+- **UI Components:** Material UI (MUI)
+- **Estado / reactividad:** MobX + mobx-react-lite
+- **HTTP client:** Axios
+- **Ruteo:** react-router-dom
+- **Calidad de código:** ESLint
 
+---
 
-FUNCIONALIDADES DESTACADAS
+## Estructura del proyecto
 
-- Login con roles (Admin, Doctor, Patient)
-- Dashboard según rol
-- Gestión de citas médicas
-- Visualización de disponibilidad por doctor
-- Validaciones de negocio desde frontend
-- Alertas para pacientes con múltiples cancelaciones
+```text
+src/
+  common/
+    config/          # Configuración de entorno (URLs y paths de API)
+    entities/        # Entidades de dominio usadas por ViewModels/Repositories
+    helpers/         # Utilidades transversales (fechas, formato, etc.)
+    session/         # Manejo de sesión/token
+  models/
+    irepositories/   # Contratos (interfaces) de acceso a datos
+    repositories/    # Implementaciones HTTP de repositorios
+  viewmodels/        # Lógica de presentación y casos de uso por pantalla
+  views/             # Componentes/páginas React
+    components/      # Componentes reutilizables de vistas
+```
 
-Ejemplo:
-El sistema alerta a los pacientes cuando tienen más de 4 cancelaciones dentro de un período de 1 mes.
+---
 
+## Arquitectura MVVM aplicada
 
-USUARIOS DE PRUEBA
+La implementación se organiza en capas:
 
-Si se restauró el backup incluido en el proyecto backend, se pueden utilizar los siguientes usuarios:
+- **View (`src/views`)**
+  - Renderiza UI y eventos de usuario.
+  - No concentra lógica de negocio compleja.
+- **ViewModel (`src/viewmodels`)**
+  - Coordina estado, validaciones y acciones.
+  - Orquesta llamadas a repositorios.
+- **Model (`src/models` + `src/common/entities`)**
+  - Contratos de datos y acceso a API.
+  - Tipado de entidades de dominio.
 
-Administrador:
-admin@clinic.com  
-Password: 123456
+### Beneficios en este proyecto
 
-Paciente:
-paciente@clinic.com  
-Password: 123456
+- Mayor mantenibilidad por separación de responsabilidades.
+- Reutilización de lógica entre pantallas.
+- Facilidad para pruebas y evolución funcional.
 
-Doctor:
-doctor@clinic.com  
-Password: 123456
+---
 
+## Requisitos previos
 
-ROLES DEL SISTEMA
+- **Node.js** 20+ recomendado.
+- **npm** 10+.
+- Backend Clinic Scheduling API disponible y accesible.
 
-El sistema contempla los siguientes roles:
+---
 
-- ADMIN
-- DOCTOR
-- PATIENT
-- DOCTORS (rol de gestión)
-- PATIENTS (rol de gestión)
+## Configuración local
 
-Dependiendo del rol, la UI mostrará diferentes módulos y funcionalidades.
+1. Clonar repositorio:
 
+```bash
+git clone https://github.com/saulkali/ClinicSchedulingFrontEnd.git
+cd ClinicSchedulingFrontEnd
+```
 
-CÓMO HACER DEPLOY
+2. Instalar dependencias:
 
-Dentro del proyecto se incluye un archivo Dockerfile que permite desplegar la aplicación fácilmente
-en un contenedor Docker.
+```bash
+npm install
+```
 
-Construir la imagen:
+3. Configurar variables de entorno (ver sección siguiente).
 
+4. Ejecutar en modo desarrollo:
+
+```bash
+npm run dev
+```
+
+5. Abrir la URL que indique Vite (usualmente `http://localhost:5173`).
+
+---
+
+## Variables de entorno
+
+La configuración principal vive en `src/common/config/env.ts` y lee variables `VITE_*`.
+
+Ejemplo de `.env` recomendado:
+
+```env
+VITE_API_BASE_URL=http://localhost:5078
+VITE_AUTH_LOGIN_PATH=/api/auth/login
+VITE_ROLE_PATH=/api/role
+VITE_USER_PATH=/api/user
+VITE_DOCTOR_PATH=/api/doctor
+VITE_PATIENT_PATH=/api/patient
+VITE_SPECIALTY_PATH=/api/specialty
+VITE_APPOINTMENT_PATH=/api/appointment
+VITE_DOCTOR_SCHEDULE_PATH=/api/DoctorSchedule
+```
+
+> Si una variable no se define, `env.ts` usa valores por defecto razonables para entorno local.
+
+---
+
+## Scripts disponibles
+
+- `npm run dev`: inicia servidor de desarrollo.
+- `npm run build`: compila TypeScript y genera build de producción.
+- `npm run lint`: ejecuta análisis estático con ESLint.
+- `npm run preview`: sirve localmente el build generado.
+
+---
+
+## Flujo de desarrollo recomendado
+
+1. Crear rama por feature o fix.
+2. Implementar cambios respetando separación MVVM.
+3. Ejecutar lint/build local.
+4. Validar flujos por rol impactados.
+5. Documentar cambios funcionales y técnicos en los archivos `.md` necesarios.
+
+Para lineamientos más detallados de colaboración, revisar [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+
+---
+
+## Build y despliegue
+
+### Build local
+
+```bash
+npm run build
+```
+
+### Deploy con Docker
+
+```bash
 docker build -t clinicscheduling-frontend .
-
-Ejecutar el contenedor:
-
 docker run -d -p 4445:80 --name clinicscheduling-frontend clinicscheduling-frontend
+```
 
-Esto expondrá la aplicación en:
+Aplicación disponible en:
 
-http://localhost:4445
+- `http://localhost:4445`
 
+---
 
-CONFIGURACIÓN DE API
+## CI/CD
 
-La URL del backend puede configurarse mediante variables de entorno o directamente
-en los archivos de configuración del proyecto.
+El repositorio incluye pipeline de Azure DevOps (`azure-pipelines.yml`) que:
 
-Ejemplo:
+1. Copia el código fuente al servidor objetivo vía SSH.
+2. Construye imagen Docker.
+3. Reemplaza contenedor en ejecución.
+4. Publica frontend en puerto `4445`.
 
-VITE_API_URL=http://localhost:4444
+---
 
-o para producción:
+## Recursos relacionados
 
-VITE_API_URL=http://170.80.240.210:4444
+- **Backend API:** https://github.com/saulkali/ClinicSchedulingAPI.git
+- **Frontend:** https://github.com/saulkali/ClinicSchedulingFrontEnd.git
+- **Demo frontend (si está disponible):** http://170.80.240.210:4445/
+- **Swagger backend (si está disponible):** http://170.80.240.210:4444/swagger/index.html
 
+---
 
-VARIABLES DE ENTORNO
+## Documentación adicional
 
-Las variables de entorno se encuentran dentro del archivo:
-
-.env
-
-Ahí se pueden configurar valores como:
-
-VITE_API_URL=http://localhost:4444
-
-Alternativamente, también pueden configurarse directamente dentro del archivo:
-
-src/config/env.ts
-
-Esto permite mayor flexibilidad dependiendo del entorno:
-
-- Desarrollo local
-- Staging
-- Producción
-- Docker
-
-
-PIPELINES Y DESPLIEGUE AUTOMÁTICO
-
-El proyecto cuenta con integración CI/CD configurada. 
-Cualquier modificación realizada en los repositorios puede reflejarse automáticamente
-en el servidor de despliegue, reduciendo tiempos manuales de publicación.
-
-Los despliegues están automatizados mediante pipelines configurados en Azure DevOps,
-aunque pueden adaptarse fácilmente a:
-
-- Jenkins
-- GitHub Actions
-- GitLab CI
-
-Esto permite:
-
-- Build automático
-- Ejecución de pruebas
-- Construcción de imagen Docker
-- Despliegue automático
-- Actualizaciones sin intervención manual
+- [Guía de colaboración para desarrolladores](./CONTRIBUTING.md)
+- [Consideraciones de migración Delphi → React](./concideracion_delphi.md)
